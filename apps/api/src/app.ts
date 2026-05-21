@@ -18,7 +18,11 @@ export function createApp(): Application {
   // ============================================
   
   // Helmet - Security headers
-  app.use(helmet());
+  // crossOriginResourcePolicy: 'cross-origin' permite que imágenes (logos, fotos)
+  // sean cargadas desde el frontend en otro dominio (Vercel → Railway)
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  }));
 
   // CORS
   const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
