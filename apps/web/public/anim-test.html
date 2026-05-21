@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Animaciones Hero — Test</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#07090F;--surface:#0C0F1A;--text:#EDF0FF;--accent:#2D6BFF;--accent2:#4F85FF;
+  --gold:#F0A500;--gold2:#FFD060;--subtle:#6B7699;
+}
+body{font-family:'Manrope',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+
+/* Controls */
+.controls{
+  position:fixed;top:0;left:0;right:0;z-index:999;
+  background:rgba(7,9,15,0.95);backdrop-filter:blur(20px);
+  border-bottom:1px solid rgba(255,255,255,0.08);
+  display:flex;align-items:center;gap:10px;padding:12px 28px;flex-wrap:wrap;
+}
+.ctrl-label{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--subtle);margin-right:6px}
+.btn-opt{
+  padding:8px 18px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;
+  border:1px solid rgba(255,255,255,0.12);background:var(--surface);color:var(--subtle);
+  font-family:'Manrope',sans-serif;transition:all 0.15s;letter-spacing:0.3px;
+}
+.btn-opt:hover{color:var(--text);border-color:rgba(255,255,255,0.25)}
+.btn-opt.active{background:rgba(45,107,255,0.15);color:var(--accent2);border-color:rgba(45,107,255,0.4)}
+.btn-replay{
+  margin-left:auto;padding:8px 20px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;
+  background:rgba(45,107,255,0.15);color:var(--accent2);border:1px solid rgba(45,107,255,0.35);
+  font-family:'Manrope',sans-serif;transition:all 0.15s;
+}
+.btn-replay:hover{background:rgba(45,107,255,0.25)}
+
+/* Hero base */
+.hero{
+  position:relative;height:100vh;min-height:680px;display:flex;align-items:center;
+  overflow:hidden;padding-top:62px;
+}
+.hero-photo{
+  position:absolute;inset:0;
+  background:url('https://images.unsplash.com/photo-1569517282132-25d22f4573e6?w=1800&q=85') center 25%/cover;
+  filter:brightness(0.22) saturate(0.7);
+}
+.grad-bottom{position:absolute;inset:0;background:linear-gradient(180deg,transparent 0%,transparent 30%,rgba(7,9,15,0.55) 58%,rgba(7,9,15,0.92) 80%,rgba(7,9,15,1) 100%)}
+.grad-left  {position:absolute;inset:0;background:linear-gradient(105deg,rgba(7,9,15,0.92) 0%,rgba(7,9,15,0.55) 42%,rgba(7,9,15,0.10) 65%,transparent 78%)}
+.grad-accent{position:absolute;inset:0;background:radial-gradient(ellipse 52% 70% at 76% 48%,rgba(45,107,255,0.18) 0%,rgba(45,107,255,0.06) 40%,transparent 68%)}
+
+/* Layout */
+.hero-inner{
+  position:relative;z-index:10;width:100%;max-width:1400px;margin:0 auto;
+  padding:0 52px;display:flex;align-items:center;gap:32px;margin-top:-40px;
+}
+.hero-text{flex:1;max-width:780px}
+.hero-diana{flex:1;display:flex;align-items:center;justify-content:center}
+
+/* Target SVG rings */
+.diana-wrap{position:relative;width:380px;height:380px;opacity:0.35;flex-shrink:0}
+.diana-ring{position:absolute;border-radius:50%;top:50%;left:50%;transform:translate(-50%,-50%)}
+
+/* Badge */
+.badge{
+  display:inline-flex;align-items:center;gap:10px;margin-bottom:14px;
+  padding:7px 16px;border-radius:100px;
+  background:rgba(13,16,28,0.72);border:1px solid rgba(255,255,255,0.10);
+  backdrop-filter:blur(14px);
+  font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;
+  color:rgba(255,255,255,0.58);
+}
+.badge-dot{width:5px;height:5px;border-radius:50%;background:var(--accent);animation:blink 2.2s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:.8}50%{opacity:.25}}
+
+/* Title */
+.title{font-size:clamp(54px,7.8vw,112px);font-weight:800;line-height:0.93;letter-spacing:-3px;margin-bottom:12px}
+.t1{display:block;color:var(--text);opacity:0.94}
+.t2{
+  display:block;
+  background:linear-gradient(130deg,#F0A500 0%,#FFD060 50%,#FFE898 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  filter:drop-shadow(0 0 48px rgba(240,165,0,0.32));
+}
+.t3{display:block;color:rgba(237,240,255,0.40);font-weight:700}
+
+/* Desc & btns */
+.desc{font-size:15px;color:rgba(237,240,255,0.44);line-height:1.75;margin-bottom:24px;max-width:450px}
+.actions{display:flex;gap:12px;flex-wrap:wrap}
+.btn-primary{
+  display:inline-flex;align-items:center;gap:9px;padding:14px 30px;border-radius:11px;
+  font-size:14px;font-weight:700;text-decoration:none;border:none;cursor:pointer;
+  background:var(--accent);color:#fff;box-shadow:0 4px 28px rgba(45,107,255,0.45);
+  font-family:'Manrope',sans-serif;
+}
+.btn-ghost{
+  display:inline-flex;align-items:center;gap:9px;padding:14px 30px;border-radius:11px;
+  font-size:14px;font-weight:700;text-decoration:none;cursor:pointer;
+  background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.14);
+  color:rgba(255,255,255,0.80);font-family:'Manrope',sans-serif;
+}
+
+/* ═══════════════════════════════════════
+   OPCION A — Blur emerge (actual)
+   Todos entran con blur+slide, stagger por elemento
+═══════════════════════════════════════ */
+.opt-a .badge    {animation:blurUp 0.65s cubic-bezier(0.16,1,0.3,1) both}
+.opt-a .t1       {animation:blurUp 0.85s cubic-bezier(0.16,1,0.3,1) 0.14s both}
+.opt-a .t2       {animation:blurUp 0.85s cubic-bezier(0.16,1,0.3,1) 0.24s both}
+.opt-a .t3       {animation:blurUp 0.85s cubic-bezier(0.16,1,0.3,1) 0.34s both}
+.opt-a .desc     {animation:blurUp 0.65s cubic-bezier(0.16,1,0.3,1) 0.44s both}
+.opt-a .actions  {animation:blurUp 0.65s cubic-bezier(0.16,1,0.3,1) 0.54s both}
+.opt-a .diana-wrap{animation:blurScaleIn 1.2s cubic-bezier(0.16,1,0.3,1) 0.30s both}
+@keyframes blurUp{
+  from{opacity:0;transform:translateY(26px);filter:blur(10px)}
+  to  {opacity:1;transform:translateY(0);  filter:blur(0)}
+}
+@keyframes blurScaleIn{
+  from{opacity:0;transform:translateX(60px) scale(0.85);filter:blur(8px)}
+  to  {opacity:1;transform:translateX(0)    scale(1);   filter:blur(0)}
+}
+
+/* ═══════════════════════════════════════
+   OPCION B — Sincronizado: texto ← izq, diana → der
+   Todo entra al mismo tiempo, coordinado
+═══════════════════════════════════════ */
+.opt-b .hero-text  {animation:slideFromLeft  0.90s cubic-bezier(0.16,1,0.3,1) both}
+.opt-b .diana-wrap {animation:slideFromRight 0.90s cubic-bezier(0.16,1,0.3,1) both}
+@keyframes slideFromLeft{
+  from{opacity:0;transform:translateX(-48px)}
+  to  {opacity:1;transform:translateX(0)}
+}
+@keyframes slideFromRight{
+  from{opacity:0;transform:translateX(72px) scale(0.88)}
+  to  {opacity:1;transform:translateX(0)    scale(1)}
+}
+
+/* ═══════════════════════════════════════
+   OPCION C — Clip curtain: cortina que sube por palabras
+   Cada línea se revela desde abajo hacia arriba
+═══════════════════════════════════════ */
+.opt-c .badge{animation:fadeSimple 0.5s ease both}
+.opt-c .t1   {animation:clipReveal 0.70s cubic-bezier(0.16,1,0.3,1) 0.10s both}
+.opt-c .t2   {animation:clipReveal 0.70s cubic-bezier(0.16,1,0.3,1) 0.22s both}
+.opt-c .t3   {animation:clipReveal 0.70s cubic-bezier(0.16,1,0.3,1) 0.34s both}
+.opt-c .desc {animation:fadeSimple 0.6s ease 0.55s both}
+.opt-c .actions{animation:fadeSimple 0.6s ease 0.70s both}
+.opt-c .diana-wrap{animation:clipRevealRight 0.90s cubic-bezier(0.16,1,0.3,1) 0.15s both}
+@keyframes clipReveal{
+  from{opacity:0;clip-path:inset(0 0 100% 0);transform:translateY(12px)}
+  to  {opacity:1;clip-path:inset(0 0 0% 0);  transform:translateY(0)}
+}
+@keyframes clipRevealRight{
+  from{opacity:0;clip-path:inset(0 0 0 100%)}
+  to  {opacity:1;clip-path:inset(0 0 0 0%)}
+}
+@keyframes fadeSimple{
+  from{opacity:0;transform:translateY(14px)}
+  to  {opacity:1;transform:translateY(0)}
+}
+
+/* ═══════════════════════════════════════
+   OPCION D — Spring pop: escala + fade, todo junto
+   Efecto de "materializarse" en pantalla
+═══════════════════════════════════════ */
+.opt-d .badge    {animation:scalePop 0.70s cubic-bezier(0.34,1.56,0.64,1) 0.05s both}
+.opt-d .t1       {animation:scalePop 0.80s cubic-bezier(0.34,1.56,0.64,1) 0.14s both}
+.opt-d .t2       {animation:scalePop 0.80s cubic-bezier(0.34,1.56,0.64,1) 0.22s both}
+.opt-d .t3       {animation:scalePop 0.80s cubic-bezier(0.34,1.56,0.64,1) 0.30s both}
+.opt-d .desc     {animation:scalePop 0.70s cubic-bezier(0.34,1.56,0.64,1) 0.40s both}
+.opt-d .actions  {animation:scalePop 0.70s cubic-bezier(0.34,1.56,0.64,1) 0.50s both}
+.opt-d .diana-wrap{animation:scalePopBig 1.00s cubic-bezier(0.34,1.56,0.64,1) 0.18s both}
+@keyframes scalePop{
+  from{opacity:0;transform:scale(0.88) translateY(16px)}
+  to  {opacity:1;transform:scale(1)    translateY(0)}
+}
+@keyframes scalePopBig{
+  from{opacity:0;transform:scale(0.65) translateX(30px)}
+  to  {opacity:1;transform:scale(1)    translateX(0)}
+}
+
+/* Label info */
+.opt-name{
+  position:fixed;bottom:28px;left:50%;transform:translateX(-50%);
+  background:rgba(13,16,28,0.9);border:1px solid rgba(255,255,255,0.08);
+  backdrop-filter:blur(14px);padding:10px 24px;border-radius:100px;
+  font-size:12px;font-weight:700;letter-spacing:0.3px;color:var(--subtle);
+  text-align:center;z-index:999;
+}
+.opt-name span{color:var(--text)}
+</style>
+</head>
+<body>
+
+<div class="controls">
+  <span class="ctrl-label">Animación:</span>
+  <button class="btn-opt active" onclick="setOpt('a')">A — Blur emerge</button>
+  <button class="btn-opt"       onclick="setOpt('b')">B — Sincronizado ←→</button>
+  <button class="btn-opt"       onclick="setOpt('c')">C — Cortina reveal</button>
+  <button class="btn-opt"       onclick="setOpt('d')">D — Spring pop</button>
+  <button class="btn-replay"    onclick="replay()">↺ Repetir</button>
+</div>
+
+<section class="hero opt-a" id="hero">
+  <div class="hero-photo"></div>
+  <div class="grad-bottom"></div>
+  <div class="grad-left"></div>
+  <div class="grad-accent"></div>
+
+  <div class="hero-inner">
+    <div class="hero-text">
+      <div class="badge">
+        🇭🇳
+        <span class="badge-dot"></span>
+        Federación Hondureña de Tiro con Arco
+      </div>
+
+      <h1 class="title">
+        <span class="t1">Medallero</span>
+        <span class="t2">Federativo</span>
+        <span class="t3">Honduras</span>
+      </h1>
+
+      <p class="desc">
+        Historial oficial de atletas, clubes y competencias.<br>
+        El registro definitivo del tiro con arco hondureño.
+      </p>
+
+      <div class="actions">
+        <a href="#" class="btn-primary">★ Ver Medallero</a>
+        <a href="#" class="btn-ghost">Buscar Atletas</a>
+      </div>
+    </div>
+
+    <div class="hero-diana">
+      <div class="diana-wrap" id="diana">
+        <div class="diana-ring" style="width:100%;height:100%;background:#F0F0F0"></div>
+        <div class="diana-ring" style="width:91%;height:91%;background:#E8E8E8"></div>
+        <div class="diana-ring" style="width:82%;height:82%;background:#222222"></div>
+        <div class="diana-ring" style="width:73%;height:73%;background:#1A1A1A"></div>
+        <div class="diana-ring" style="width:64%;height:64%;background:#4AADE8"></div>
+        <div class="diana-ring" style="width:55%;height:55%;background:#5BBDED"></div>
+        <div class="diana-ring" style="width:46%;height:46%;background:#E8302A"></div>
+        <div class="diana-ring" style="width:37%;height:37%;background:#EF3F3A"></div>
+        <div class="diana-ring" style="width:27%;height:27%;background:#F5C800"></div>
+        <div class="diana-ring" style="width:14%;height:14%;background:#FFDD00"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="opt-name" id="optname">
+  Opción <span>A</span> — Blur emerge (actual en el app)
+</div>
+
+<script>
+const names = {
+  a: 'A — Blur emerge (actual en el app)',
+  b: 'B — Sincronizado ←→ (texto y diana al mismo tiempo)',
+  c: 'C — Cortina reveal (palabras se revelan desde abajo)',
+  d: 'D — Spring pop (todo aparece con rebote)',
+};
+
+let current = 'a';
+
+function setOpt(opt) {
+  current = opt;
+  const hero = document.getElementById('hero');
+  const label = document.getElementById('optname');
+  hero.className = 'hero opt-' + opt;
+  label.innerHTML = 'Opción <span>' + names[opt] + '</span>';
+  document.querySelectorAll('.btn-opt').forEach((b, i) => {
+    b.classList.toggle('active', ['a','b','c','d'][i] === opt);
+  });
+  replay();
+}
+
+function replay() {
+  const hero = document.getElementById('hero');
+  const cls = hero.className;
+  hero.className = 'hero';
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    hero.className = cls;
+  }));
+}
+</script>
+</body>
+</html>

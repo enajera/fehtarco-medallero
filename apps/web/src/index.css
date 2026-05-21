@@ -1,0 +1,419 @@
+/* ── Fonts ─────────────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Manrope:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=clash-display@200,300,400,500,600,700&display=swap');
+
+/* ── Tailwind v4 ────────────────────────────────────────────────────────────── */
+@import "tailwindcss";
+
+/* ── Design Tokens (Tailwind v4 @theme) ────────────────────────────────────── */
+@theme {
+  /* Fonts */
+  --font-clash: 'Manrope', 'Clash Display', sans-serif;
+  --font-manrope: 'Manrope', sans-serif;
+  --font-mono: 'Space Mono', monospace;
+
+  /* Background / Surfaces */
+  --color-bg:       #07090F;
+  --color-surface:  #0C0F1A;
+  --color-surface2: #111525;
+  --color-surface3: #171D30;
+
+  /* Text */
+  --color-text:     #EDF0FF;
+  --color-muted:    #3D4666;
+  --color-subtle:   #6B7699;
+
+  /* Borders */
+  --color-border:   rgba(255,255,255,0.065);
+  --color-border2:  rgba(255,255,255,0.12);
+
+  /* Accent */
+  --color-accent:   #2D6BFF;
+  --color-accent2:  #4F85FF;
+
+  /* Honduras blue */
+  --color-hn-blue:  #002D9C;
+
+  /* Medal — Gold */
+  --color-gold:     #F0A500;
+  --color-gold2:    #FFD060;
+  --color-gold-g:   rgba(240,165,0,0.18);
+
+  /* Medal — Silver */
+  --color-silver:   #8BACC4;
+  --color-silver2:  #B8CFDF;
+  --color-silver-g: rgba(139,172,196,0.12);
+
+  /* Medal — Bronze */
+  --color-bronze:   #C4713A;
+  --color-bronze2:  #E09060;
+  --color-bronze-g: rgba(196,113,58,0.14);
+}
+
+/* ── CSS Custom Properties (for use in arbitrary values & JS) ──────────────── */
+:root {
+  --bg:        #07090F;
+  --surface:   #0C0F1A;
+  --surface2:  #111525;
+  --surface3:  #171D30;
+  --text:      #EDF0FF;
+  --muted:     #3D4666;
+  --subtle:    #6B7699;
+  --border:    rgba(255,255,255,0.065);
+  --border2:   rgba(255,255,255,0.12);
+  --accent:    #2D6BFF;
+  --accent2:   #4F85FF;
+  --hn-blue:   #002D9C;
+  --gold:      #F0A500;
+  --gold2:     #FFD060;
+  --gold-g:    rgba(240,165,0,0.18);
+  --silver:    #8BACC4;
+  --silver2:   #B8CFDF;
+  --silver-g:  rgba(139,172,196,0.12);
+  --bronze:    #C4713A;
+  --bronze2:   #E09060;
+  --bronze-g:  rgba(196,113,58,0.14);
+}
+
+/* ── Base ────────────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  overflow-y: scroll;
+  scroll-behavior: auto;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: 'Manrope', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* ── Typography helpers ──────────────────────────────────────────────────────── */
+.font-clash  { font-family: 'Manrope', 'Clash Display', sans-serif; }
+.font-mono   { font-family: 'Space Mono', monospace; }
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar         { width: 6px; }
+::-webkit-scrollbar-track   { background: var(--bg); }
+::-webkit-scrollbar-thumb   { background: var(--muted); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--subtle); }
+
+/* ── Keyframes (referenced from components via framer-motion or CSS) ─────────── */
+@keyframes slowZoom {
+  from { transform: scale(1.04); }
+  to   { transform: scale(1.10); }
+}
+
+@keyframes starPulse {
+  0%, 100% { opacity: 0.9; }
+  50%       { opacity: 0.4; }
+}
+
+@keyframes badgeBlink {
+  0%, 100% { opacity: 0.8; }
+  50%       { opacity: 0.25; }
+}
+
+@keyframes scrollBounce {
+  0%, 100% { transform: translateY(0);   opacity: 0.3; }
+  50%       { transform: translateY(7px); opacity: 0.15; }
+}
+
+/* ── Focus visible ───────────────────────────────────────────────────────────── */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ── Tap highlight ───────────────────────────────────────────────────────────── */
+* { -webkit-tap-highlight-color: transparent; }
+
+/* ── Dark table ───────────────────────────────────────────────────────────────── */
+.dtable { width: 100%; border-collapse: collapse; font-family: 'Manrope', sans-serif; }
+.dtable th {
+  background: var(--surface2);
+  color: var(--subtle);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+.dtable th.tc { text-align: center; }
+.dtable td {
+  padding: 13px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: var(--text);
+  font-size: 14px;
+  vertical-align: middle;
+}
+.dtable tbody tr:last-child td { border-bottom: none; }
+.dtable tbody tr:hover td { background: rgba(255,255,255,0.025); }
+.dtable .tc { text-align: center; }
+
+/* ── Dark card ────────────────────────────────────────────────────────────────── */
+.dcard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.dcard-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ── Dark inputs/selects ──────────────────────────────────────────────────────── */
+.dinput, .dselect {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 9px 14px;
+  font-family: 'Manrope', sans-serif;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.dinput::placeholder { color: var(--subtle); }
+.dinput:focus, .dselect:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(45,107,255,0.18);
+}
+.dselect { cursor: pointer; }
+
+/* ── Page header ──────────────────────────────────────────────────────────────── */
+.page-eyebrow {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.page-eyebrow::before {
+  content: '';
+  width: 22px;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 2px;
+  flex-shrink: 0;
+  display: inline-block;
+}
+.page-title {
+  font-family: 'Manrope', sans-serif;
+  font-size: clamp(24px, 3vw, 36px);
+  font-weight: 800;
+  color: var(--text);
+  margin: 0 0 4px;
+  line-height: 1.15;
+}
+
+/* ── Medal badge circles ──────────────────────────────────────────────────────── */
+.mbadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-weight: 800;
+  font-size: 13px;
+  font-family: 'Space Mono', monospace;
+}
+.mbadge-gold   { background: rgba(240,165,0,0.18);   color: var(--gold);   }
+.mbadge-silver { background: rgba(139,172,196,0.14);  color: var(--silver); }
+.mbadge-bronze { background: rgba(196,113,58,0.14);   color: var(--bronze); }
+
+/* ── Club avatar circle ───────────────────────────────────────────────────────── */
+.club-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--surface3);
+  border: 1.5px solid rgba(255,255,255,0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--accent2);
+}
+.club-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.club-avatar--lg { width: 64px; height: 64px; font-size: 18px; }
+.club-avatar--xl { width: 92px; height: 92px; font-size: 26px; }
+.club-avatar--2xl { width: 148px; height: 148px; font-size: 44px; }
+
+/* ── Athlete avatar circle ────────────────────────────────────────────────────── */
+.ath-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--surface3);
+  border: 1.5px solid rgba(255,255,255,0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+}
+.ath-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.ath-avatar--xl { width: 88px; height: 88px; font-size: 28px; }
+
+/* ── Chip / tag ───────────────────────────────────────────────────────────────── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.chip-accent  { background: rgba(45,107,255,0.15);   color: var(--accent2); }
+.chip-gold    { background: rgba(240,165,0,0.15);     color: var(--gold2); }
+.chip-silver  { background: rgba(139,172,196,0.15);   color: var(--silver2); }
+.chip-bronze  { background: rgba(196,113,58,0.15);    color: var(--bronze2); }
+.chip-green   { background: rgba(34,197,94,0.15);     color: #4ade80; }
+.chip-muted   { background: var(--surface3);          color: var(--subtle); }
+
+/* ── Dark button ──────────────────────────────────────────────────────────────── */
+.dbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 20px;
+  border-radius: 10px;
+  font-family: 'Manrope', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  text-decoration: none;
+  transition: all 0.15s;
+  white-space: nowrap;
+  line-height: 1;
+}
+.dbtn-primary { background: var(--accent); color: #fff; }
+.dbtn-primary:hover { background: #3d7aff; color: #fff; }
+.dbtn-ghost {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border2);
+}
+.dbtn-ghost:hover { background: var(--surface3); }
+.dbtn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
+.dbtn-sm { padding: 6px 14px; font-size: 12px; border-radius: 8px; }
+
+/* ── Page tabs ────────────────────────────────────────────────────────────────── */
+.dtabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+  padding: 0;
+}
+.dtab {
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--subtle);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all 0.15s;
+  font-family: 'Manrope', sans-serif;
+  white-space: nowrap;
+}
+.dtab:hover { color: var(--text); }
+.dtab.active { color: var(--accent2); border-bottom-color: var(--accent); }
+
+/* ── Rank circle ──────────────────────────────────────────────────────────────── */
+.rank-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--surface3);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--subtle);
+  font-family: 'Space Mono', monospace;
+}
+
+/* ── Profile header band ──────────────────────────────────────────────────────── */
+.profile-band {
+  background: linear-gradient(135deg, var(--surface) 0%, var(--surface2) 100%);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 32px 36px;
+  margin-bottom: 28px;
+}
+
+/* ── Stat card (profile) ──────────────────────────────────────────────────────── */
+.stat-pill {
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 18px;
+  text-align: center;
+  min-width: 80px;
+}
+.stat-pill-value {
+  font-size: 22px;
+  font-weight: 800;
+  font-family: 'Space Mono', monospace;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.stat-pill-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--subtle);
+}
+
+/* ── Admin utilities (kept from previous build) ─────────────────────────────── */
+.compact-table { font-size: 0.85rem; }
+.compact-table th,
+.compact-table td {
+  padding: 0.35rem 0.5rem !important;
+  vertical-align: middle;
+  cursor: default !important;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.compact-table img { width: 28px !important; height: 28px !important; object-fit: cover !important; }
+.admin-edit-input  { cursor: text !important; caret-color: auto !important; }

@@ -1,0 +1,33 @@
+{
+  "name": "medallero",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema Federativo de Historial y Medallero - MVP",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:api": "npm run dev -w apps/api",
+    "dev:web": "npm run dev -w apps/web",
+    "dev:all": "concurrently \"npm run dev:api\" \"npm run dev:web\" -n api,web -c blue,green",
+    "build": "npm run build --workspaces --if-present",
+    "build:api": "npm run build -w apps/api",
+    "build:web": "npm run build -w apps/web",
+    "db:migrate": "npm run db:migrate -w apps/api",
+    "db:seed": "npm run db:seed -w apps/api",
+    "db:studio": "npm run db:studio -w apps/api"
+  },
+  "keywords": [
+    "archery",
+    "federation",
+    "medals",
+    "sports"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}

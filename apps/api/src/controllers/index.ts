@@ -1,0 +1,9 @@
+export * as authController from './auth.controller';
+export * as clubController from './club.controller';
+export * as athleteController from './athlete.controller';
+export * as categoryController from './category.controller';
+export * as eventController from './event.controller';
+export * as resultController from './result.controller';
+export * as medalController from './medal.controller';
+export * as profileController from './profile.controller';
+export * as diagnosticController from './diagnostic.controller';

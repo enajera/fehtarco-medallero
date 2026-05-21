@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Font Test — Medallero</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@700;800&family=Urbanist:wght@700;800&family=Space+Grotesk:wght@700&family=Syne:wght@700;800&family=Plus+Jakarta+Sans:wght@700;800&family=DM+Sans:ital,opsz,wght@0,9..40,700;0,9..40,800&family=Figtree:wght@700;800&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #07090F;
+    color: #EDF0FF;
+    padding: 40px 48px;
+    min-height: 100vh;
+  }
+  h2 {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #3D4666;
+    margin-bottom: 10px;
+  }
+  .card {
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 14px;
+    padding: 32px 36px;
+    margin-bottom: 16px;
+    background: #0C0F1A;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  .card:hover { border-color: rgba(45,107,255,0.4); }
+  .title-block { flex: 1; }
+  .font-label {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    color: #6B7699;
+    margin-bottom: 12px;
+    letter-spacing: 0.5px;
+  }
+  .badge {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+  .badge-ok  { background: rgba(45,107,255,0.15); color: #4F85FF; }
+  .badge-cdn { background: rgba(240,165,0,0.12);  color: #F0A500; }
+
+  .hero-text {
+    font-size: clamp(38px, 5.5vw, 72px);
+    font-weight: 800;
+    line-height: 0.93;
+    letter-spacing: -2px;
+  }
+  .t1 { color: #EDF0FF; opacity: 0.94; }
+  .t2 {
+    background: linear-gradient(130deg,#F0A500 0%,#FFD060 50%,#FFE898 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .t3 { color: rgba(237,240,255,0.40); font-weight: 700; }
+
+  .f-outfit        { font-family: 'Outfit', sans-serif; }
+  .f-urbanist      { font-family: 'Urbanist', sans-serif; }
+  .f-space-grotesk { font-family: 'Space Grotesk', sans-serif; }
+  .f-syne          { font-family: 'Syne', sans-serif; }
+  .f-plus-jakarta  { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .f-dm-sans       { font-family: 'DM Sans', sans-serif; }
+  .f-figtree       { font-family: 'Figtree', sans-serif; }
+  .f-manrope       { font-family: 'Manrope', sans-serif; }
+
+  p.note {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: #6B7699;
+    max-width: 720px;
+    margin-bottom: 32px;
+    line-height: 1.6;
+  }
+  strong { color: #EDF0FF; }
+</style>
+</head>
+<body>
+
+<p class="note">
+  Todas estas fuentes son de <strong>Google Fonts</strong> — cargan 100% en Chrome sin depender de Fontshare.
+  Haz scroll y dime cuál número te gusta más.
+</p>
+
+<!-- 1 -->
+<div class="card">
+  <div class="title-block">
+    <p class="font-label">1 — <strong>Outfit</strong> <span class="badge badge-ok">Google Fonts</span> · La más parecida a Clash Display</p>
+    <div class="hero-text f-outfit">
+      <span class="block t1">Medallero</span>
+      <span class="block t2">Federativo</span>
+      <span class="block t3">Honduras</span>
+    </div>
+  </div>
+</div>
+
+<!-- 2 -->
+<div class="card">
+  <div class="title-block">
+    <p class="font-label">2 — <strong>Urbanist</strong> <span class="badge badge-ok">Google Fonts</span> · Geométrica, limpia, muy moderna</p>
+    <div class="hero-text f-urbanist">
+      <span class="block t1">Medallero</span>
+      <span class="block t2">Federativo</span>
+      <span class="block t3">Honduras</span>
+    </div>
+  </div>
+</div>
+
+<!-- 3 -->
+<div class="card">
+  <div class="title-block">
+    <p class="font-label">3 — <strong>Space Grotesk</strong> <span class="badge badge-ok">Google Fonts</span> · Técnica, con carácter propio</p>
+    <div class="hero-text f-space-grotesk">
+      <span class="block t1">Medallero</span>
+      <span class="block t2">Federativo</span>
+      <span class="block t3">Honduras</span>
+    </div>
+  </div>
+</div>
+
+<!-- 4 -->
+<div class="card">
+  <div class="title-block">
+    <p class="font-label">4 — <strong>Syne</strong> <span class="badge badge-ok">Google Fonts</span> · Display bold, más expresiva y deportiva</p>
+    <div class="hero-text f-syne">
+      <span class="block t1">Medallero</span>
+      <span class="block t2">Federativo</span>
+      <span class="block t3">Honduras</span>
+    </div>
+  </div>
+</div>
+
+<!-- 5 -->
+<div class="card">
+  <div class="title-block">
+    <p class="font-label">5 — <strong>Plus Jakarta Sans</strong> <span class="badge badge-ok">Google Fonts</span> · Ya instalada como fallback</p>
+    <div class="hero-text f-plus-jakarta">
+      <span class="block t1">Medallero</span>
+      <span class="block t2">Federativo</span>
+      <span class="block t3">Honduras</span>
+    </div>
+  </div>
+</div>
+
+<!-- 6 -->
+<div class="card">
+  <div class="title-block">
+    <p class="font-label">6 — <strong>DM Sans</strong> <span class="badge badge-ok">Google Fonts</span> · Muy legible, profesional y neutral</p>
+    <div class="hero-text f-dm-sans">
+      <span class="block t1">Medallero</span>
+      <span class="block t2">Federativo</span>
+      <span class="block t3">Honduras</span>
+    </div>
+  </div>
+</div>
+
+<!-- 7 -->
+<div class="card">
+  <div class="title-block">
+    <p class="font-label">7 — <strong>Figtree</strong> <span class="badge badge-ok">Google Fonts</span> · Redondeada, amigable y moderna</p>
+    <div class="hero-text f-figtree">
+      <span class="block t1">Medallero</span>
+      <span class="block t2">Federativo</span>
+      <span class="block t3">Honduras</span>
+    </div>
+  </div>
+</div>
+
+<!-- 8 -->
+<div class="card">
+  <div class="title-block">
+    <p class="font-label">8 — <strong>Manrope</strong> <span class="badge badge-ok">Google Fonts</span> · La que ya usas para el cuerpo del texto</p>
+    <div class="hero-text f-manrope">
+      <span class="block t1">Medallero</span>
+      <span class="block t2">Federativo</span>
+      <span class="block t3">Honduras</span>
+    </div>
+  </div>
+</div>
+
+<!-- Referencia -->
+<div class="card" style="border-color:rgba(240,165,0,0.25)">
+  <div class="title-block">
+    <p class="font-label">★ REFERENCIA — <strong>Clash Display</strong> <span class="badge badge-cdn">Fontshare CDN</span> · Puede fallar en Chrome</p>
+    <div class="hero-text" style="font-family:'Clash Display','Outfit',sans-serif;">
+      <span class="block t1">Medallero</span>
+      <span class="block t2">Federativo</span>
+      <span class="block t3">Honduras</span>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

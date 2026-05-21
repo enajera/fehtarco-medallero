@@ -1,0 +1,229 @@
+{
+  "clubs": [
+    {
+      "name": "Club Fenix",
+      "city": "Tegucigalpa",
+      "logoUrl": "https://example.com/fenix.png",
+      "active": true
+    },
+    {
+      "name": "Club Artemisa",
+      "city": "San Pedro Sula",
+      "logoUrl": "https://example.com/artemisa.png",
+      "active": true
+    },
+    {
+      "name": "Club Diana",
+      "city": "La Ceiba",
+      "logoUrl": null,
+      "active": true
+    }
+  ],
+  "athletes": [
+    {
+      "firstName": "Juan",
+      "lastName": "Pérez",
+      "gender": "M",
+      "bowType": "RECURVE",
+      "clubName": "Club Fenix",
+      "birthDate": "1995-03-15T00:00:00Z",
+      "phone": "+504 9876 5432",
+      "email": "juan.perez@example.com",
+      "emergencyContactName": "Maria Pérez",
+      "emergencyContactPhone": "+504 9876 5433",
+      "bloodType": "O+",
+      "drawWeightLbs": 42.5,
+      "drawLengthIn": 28.5,
+      "photoUrl": "https://example.com/juan.jpg",
+      "active": true
+    },
+    {
+      "firstName": "Carlos",
+      "lastName": "López",
+      "gender": "M",
+      "bowType": "COMPOUND",
+      "clubName": "Club Artemisa",
+      "birthDate": "1998-07-22T00:00:00Z",
+      "phone": null,
+      "email": "carlos@example.com",
+      "active": true
+    },
+    {
+      "firstName": "Ana",
+      "lastName": "García",
+      "gender": "F",
+      "bowType": "RECURVE",
+      "clubName": "Club Diana",
+      "birthDate": "1992-11-08T00:00:00Z",
+      "phone": null,
+      "email": "ana@example.com",
+      "active": true
+    },
+    {
+      "firstName": "Roberto",
+      "lastName": "Martínez",
+      "gender": "M",
+      "bowType": "BAREBOW",
+      "clubName": null,
+      "birthDate": "1990-05-20T00:00:00Z",
+      "phone": null,
+      "email": null,
+      "active": true
+    }
+  ],
+  "events": [
+    {
+      "name": "Nacional 2025 - Outdoor 70m",
+      "organizer": "Federación de Arquería de Honduras",
+      "location": "Tegucigalpa",
+      "country": "Honduras",
+      "startDate": "2025-05-10T08:00:00Z",
+      "endDate": "2025-05-12T18:00:00Z",
+      "eventScope": "NATIONAL_FEDERATION",
+      "technicalLevel": "WA_STANDARD",
+      "official": true,
+      "clubMedalsEnabled": true
+    },
+    {
+      "name": "Selectivo 2025 - Indoor",
+      "organizer": "Federación de Arquería de Honduras",
+      "location": "San Pedro Sula",
+      "country": "Honduras",
+      "startDate": "2025-02-01T09:00:00Z",
+      "endDate": "2025-02-03T17:00:00Z",
+      "eventScope": "NATIONAL_FEDERATION",
+      "technicalLevel": "INDOOR_STANDARD",
+      "official": true,
+      "clubMedalsEnabled": true
+    },
+    {
+      "name": "Torneo Reducido - Menores",
+      "organizer": "Club Fenix",
+      "location": "Tegucigalpa",
+      "country": "Honduras",
+      "startDate": "2025-03-15T10:00:00Z",
+      "endDate": "2025-03-15T16:00:00Z",
+      "eventScope": "NATIONAL_FEDERATION",
+      "technicalLevel": "REDUCED",
+      "official": false,
+      "clubMedalsEnabled": false
+    }
+  ],
+  "eventCategories": [
+    {
+      "eventName": "Nacional 2025 - Outdoor 70m",
+      "bowType": "RECURVE",
+      "gender": "M",
+      "division": "Senior",
+      "modalityName": "INDIVIDUAL"
+    },
+    {
+      "eventName": "Nacional 2025 - Outdoor 70m",
+      "bowType": "RECURVE",
+      "gender": "F",
+      "division": "Senior",
+      "modalityName": "INDIVIDUAL"
+    },
+    {
+      "eventName": "Nacional 2025 - Outdoor 70m",
+      "bowType": "COMPOUND",
+      "gender": "M",
+      "division": "Senior",
+      "modalityName": "INDIVIDUAL"
+    },
+    {
+      "eventName": "Selectivo 2025 - Indoor",
+      "bowType": "RECURVE",
+      "gender": "M",
+      "division": "Senior",
+      "modalityName": "INDIVIDUAL"
+    },
+    {
+      "eventName": "Selectivo 2025 - Indoor",
+      "bowType": "RECURVE",
+      "gender": "F",
+      "division": "Senior",
+      "modalityName": "INDIVIDUAL"
+    }
+  ],
+  "results": [
+    {
+      "eventName": "Nacional 2025 - Outdoor 70m",
+      "bowType": "RECURVE",
+      "gender": "M",
+      "division": "Senior",
+      "modalityName": "INDIVIDUAL",
+      "phaseName": "QUALIFICATION",
+      "athleteFirstName": "Juan",
+      "athleteLastName": "Pérez",
+      "score": 645,
+      "position": 1,
+      "notes": "Excellent performance"
+    },
+    {
+      "eventName": "Nacional 2025 - Outdoor 70m",
+      "bowType": "RECURVE",
+      "gender": "M",
+      "division": "Senior",
+      "modalityName": "INDIVIDUAL",
+      "phaseName": "QUALIFICATION",
+      "athleteFirstName": "Carlos",
+      "athleteLastName": "López",
+      "score": 632,
+      "position": 2,
+      "notes": null
+    },
+    {
+      "eventName": "Nacional 2025 - Outdoor 70m",
+      "bowType": "RECURVE",
+      "gender": "M",
+      "division": "Senior",
+      "modalityName": "INDIVIDUAL",
+      "phaseName": "FINAL",
+      "athleteFirstName": "Juan",
+      "athleteLastName": "Pérez",
+      "score": 298,
+      "position": 1,
+      "notes": "Gold medal"
+    },
+    {
+      "eventName": "Nacional 2025 - Outdoor 70m",
+      "bowType": "RECURVE",
+      "gender": "M",
+      "division": "Senior",
+      "modalityName": "INDIVIDUAL",
+      "phaseName": "FINAL",
+      "athleteFirstName": "Carlos",
+      "athleteLastName": "López",
+      "score": 287,
+      "position": 2,
+      "notes": "Silver medal"
+    },
+    {
+      "eventName": "Nacional 2025 - Outdoor 70m",
+      "bowType": "RECURVE",
+      "gender": "F",
+      "division": "Senior",
+      "modalityName": "INDIVIDUAL",
+      "phaseName": "QUALIFICATION",
+      "athleteFirstName": "Ana",
+      "athleteLastName": "García",
+      "score": 618,
+      "position": 1,
+      "notes": null
+    },
+    {
+      "eventName": "Nacional 2025 - Outdoor 70m",
+      "bowType": "RECURVE",
+      "gender": "F",
+      "division": "Senior",
+      "modalityName": "INDIVIDUAL",
+      "phaseName": "FINAL",
+      "athleteFirstName": "Ana",
+      "athleteLastName": "García",
+      "score": 285,
+      "position": 1,
+      "notes": "Gold medal"
+    }
+  ]
+}

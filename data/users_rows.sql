@@ -1,0 +1,1 @@
+INSERT INTO "public"."users" ("id", "email", "passwordHash", "role", "active", "createdAt", "updatedAt") VALUES ('1', 'elvin7n@gmail.com', '$2b$10$J8fZSQgwOa.JxnmaSHoI0utVZBFMj3CiiXTc.DhdjEJLY5Evhd.v6', 'SUPER_ADMIN', 'true', '2026-01-16 02:01:40.92', '2026-01-16 02:01:40.92');

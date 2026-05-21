@@ -1,0 +1,1979 @@
+import { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Card, Table, Button, Form, Modal, Row, Col, Alert, Badge, Spinner } from 'react-bootstrap';
+import api, { eventsApi, athletesApi, resultsApi, phasesApi, categoriesApi, modalitiesApi, Event, Athlete } from '../../api/client';
+import Loading from '../../components/Loading';
+import { formatError } from '../../utils/errors';
+import { formatDistance } from '../../utils/format';
+
+// Helper function - stable across renders (defined outside component)
+const genderLabel = (g?: string) => {
+  if (!g) return '';
+  const mapping: Record<string, string> = {
+    'M': 'Masculino',
+    'F': 'Femenino',
+    'MALE': 'Masculino',
+    'FEMALE': 'Femenino',
+  };
+  return mapping[g] || g;
+};
+
+interface EventCategory {
+  id: number;
+  category: { bowType: string; gender: string; division: string };
+  modality: { name: string };
+  phases: Array<{ id: number; name: string; order: number }>;
+  distance?: string;
+  _count?: { results: number };
+}
+
+interface Result {
+  id: number;
+  score: number;
+  position: number;
+  athlete: { id: number; firstName: string; lastName: string; club?: { name: string } };
+  phase: { id: number; name: string };
+  eventCategory?: { distance?: string };
+}
+
+// Memoized CategoryCard component - only re-renders if its props change, not when parent state updates
+interface CategoryCardProps {
+  ec: EventCategory;
+  categoryLoading: boolean;
+  activeCategory: EventCategory | null;
+  onOpenModal: (ec: EventCategory) => void;
+}
+
+const CategoryCard = memo(({ ec, categoryLoading, activeCategory, onOpenModal }: CategoryCardProps) => (
+  <Col md={6} lg={4} className="mb-3">
+    <Card>
+      <Card.Body className="d-flex justify-content-between align-items-center">
+        <div>
+          <strong>{ec.category.bowType} - {genderLabel(ec.category.gender)} - {ec.category.division}</strong>
+          <div className="text-muted small">{formatDistance(ec.distance)}</div>
+        </div>
+        <div className="text-end">
+          <Badge bg={ec._count?.results ? 'success' : 'secondary'} className="mb-2">{ec._count?.results || 0} resultados</Badge>
+          <div>
+            <Button size="sm" variant="outline-primary" onClick={() => onOpenModal(ec)}>
+              {categoryLoading && activeCategory?.id === ec.id ? <Spinner animation="border" size="sm" /> : 'Ver'}
+            </Button>
+          </div>
+        </div>
+      </Card.Body>
+    </Card>
+  </Col>
+));
+CategoryCard.displayName = 'CategoryCard';
+
+export default function AdminResults() {
+  const [searchParams] = useSearchParams();
+  const eventIdParam = searchParams.get('event');
+
+  const [events, setEvents] = useState<Event[]>([]);
+  const [allFetchedEvents, setAllFetchedEvents] = useState<Event[]>([]);
+  const [years, setYears] = useState<number[]>([]);
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [athletes, setAthletes] = useState<Athlete[]>([]);
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  // Selected category (optional): kept for compatibility with some flows that still use it
+  const [selectedCategory, setSelectedCategory] = useState<EventCategory | null>(null);
+  // We no longer show category/phase/distance filters at the top - we work per-category via cards and modals
+  // const [selectedPhase, setSelectedPhase] = useState<number | null>(null);
+  // const [selectedDistance, setSelectedDistance] = useState<string | null>(null);
+  const [selectedPhase, setSelectedPhase] = useState<number | null>(null);
+  const [selectedDistance, setSelectedDistance] = useState<string | null>(null);
+  const [results, setResults] = useState<Result[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  // Add-result modal scoped messages
+  const [modalResultMessage, setModalResultMessage] = useState('');
+  const [modalResultError, setModalResultError] = useState('');
+
+  const [formData, setFormData] = useState({
+    athleteId: '',
+    score: '',
+    position: '',
+  });
+
+  const [editingResult, setEditingResult] = useState<Result | null>(null);
+
+  const [globalPhases, setGlobalPhases] = useState<Array<{ id: number; name: string; order: number }>>([]);
+  // (removed suppressFetchRef - single-fetch logic handled via effect)
+
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<EventCategory | null>(null);
+  const [categoryResults, setCategoryResults] = useState<Result[]>([]);
+  const [categoryLoading, setCategoryLoading] = useState(false);
+  const [categoryEditingId, setCategoryEditingId] = useState<number | null>(null);
+  const [categoryEditingForm, setCategoryEditingForm] = useState({ score: '', position: '' });
+  // grouped results cache: eventCategoryId -> Result[]
+  const [resultsByCategory, setResultsByCategory] = useState<Record<number, Result[]>>({});
+  const [modalPhaseId, setModalPhaseId] = useState<number | null>(null);
+  const [athleteSearch, setAthleteSearch] = useState('');
+  const [athleteOptions, setAthleteOptions] = useState<Athlete[]>([]);
+  const athleteSearchTimeout = useRef<number | null>(null);
+  const fetchInProgressRef = useRef<boolean>(false);
+  const fetchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fetchLastTsRef = useRef<number>(0);
+  const fetchPromiseRef = useRef<Promise<void> | null>(null);
+  // Per-category freeze: when we insert pending optimistic rows for a category
+  // we mark the category as frozen so background fetches won't overwrite its list
+  // until the user saves or a timeout expires.
+  const pendingFreezeCategoriesRef = useRef<Set<number>>(new Set());
+  const pendingFreezeTimersRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+  // When we perform optimistic mutations (create/import/delete) we set this ref to a
+  // short-future timestamp so background/quiet fetches won't overwrite optimistic
+  // entries immediately. Value is ms since epoch.
+  const suspendMergeUntilRef = useRef<number>(0);
+  // store optimistic inserted rows per category so we can show them immediately
+  const pendingInsertedRef = useRef<Record<number, Result[]>>({});
+  const [quickForm, setQuickForm] = useState({ athleteId: '', score: '', position: '' });
+
+  // Add Category modal state
+  const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
+  const [addCategoryForm, setAddCategoryForm] = useState({ categoryId: '', modalityId: '', phases: ['QUALIFICATION', 'FINAL'], distance: '' });
+  const [allCategories, setAllCategories] = useState<Array<{ id: number; bowType: string; gender: string; division: string }>>([]);
+  const [allModalities, setAllModalities] = useState<Array<{ id: number; name: string }>>([]);
+
+  // Import from IANSEO state
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [ianseoUrl, setIanseoUrl] = useState('');
+  const [importLoading, setImportLoading] = useState(false);
+  const [importError, setImportError] = useState('');
+  const [importPreview, setImportPreview] = useState<Array<{ position: number; name: string; total: number }>>([]);
+  const [importPreviewing, setImportPreviewing] = useState(false);
+  const [categoryMessage, setCategoryMessage] = useState('');
+  const [categoryError, setCategoryError] = useState('');
+  // Debug helper: log category-related state to console to trace why items disappear
+  const debugCategoryState = (tag: string) => {
+    try {
+      const acId = activeCategory?.id ?? null;
+      const catLen = categoryResults?.length ?? 0;
+      const cacheLen = (acId && resultsByCategory && resultsByCategory[acId]) ? resultsByCategory[acId].length : 0;
+      console.info('[AdminResults] debug', tag, { activeCategoryId: acId, categoryResultsLength: catLen, cachedLength: cacheLen });
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  // Name normalization and fuzzy matching helpers used for import/name lookups
+  const normalizeName = (s?: string) => {
+    if (!s) return '';
+    try {
+      // remove diacritics, punctuation, collapse spaces and lowercase
+      return s
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+        .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+    } catch (e) {
+      return s.toLowerCase();
+    }
+  };
+
+  const nameTokens = (s?: string) => normalizeName(s).split(' ').filter(t => t && t.length > 0 && t.length !== 1);
+  // include single-letter tokens so initials are available for matching
+  const nameTokensWithInitials = (s?: string) => normalizeName(s).split(' ').filter(t => t && t.length > 0);
+
+  const tokenOverlapRatio = (a: string[], b: string[]) => {
+    if (!a.length || !b.length) return 0;
+    const setB = new Set(b);
+    const inter = a.filter(x => setB.has(x)).length;
+    return inter / Math.max(a.length, b.length);
+  };
+
+  const lastToken = (s?: string) => {
+    const t = nameTokens(s);
+    return t.length ? t[t.length - 1] : '';
+  };
+
+  const isNameMatch = (athlete: Athlete, rawName: string) => {
+    if (!rawName) return false;
+    // Normalize both candidate (DB) and raw (IANSEO) names: remove diacritics, punctuation, collapse spaces and lowercase
+    const dbFull = `${athlete.firstName || ''} ${athlete.lastName || ''}`;
+    const a = normalizeName(dbFull);
+    const b = normalizeName(rawName || '');
+    // direct equality
+    if (a === b) return true;
+
+    // handle cases where raw is 'last, first' -> reorder
+    const rawParts = rawName.split(',').map(x => x.trim()).filter(Boolean);
+    if (rawParts.length === 2) {
+      const reordered = normalizeName(`${rawParts[1]} ${rawParts[0]}`);
+      if (a === reordered) return true;
+    }
+
+    // tokens including initials
+    const atoks = nameTokensWithInitials(a);
+    const btoks = nameTokensWithInitials(b);
+
+    // exact token overlap (including initials) - allow partial overlap
+    const overlap = tokenOverlapRatio(atoks, btoks);
+    if (overlap >= 0.55) return true;
+
+    // If all or most DB tokens appear somewhere in the raw tokens (handles extra maternal surnames)
+    try {
+      const setB = new Set(btoks);
+      const matchedDbTokens = atoks.filter(t => setB.has(t)).length;
+      if (atoks.length > 0 && (matchedDbTokens / atoks.length) >= 0.8) return true;
+    } catch (e) {}
+
+    // last name strong match (allow small typo)
+    const alast = lastToken(a);
+    const blast = lastToken(b);
+    if (alast && blast) {
+      if (alast === blast) return true;
+      const ld = levenshtein(alast, blast);
+      if (ld <= 1) return true;
+    }
+
+    // first name initial + last name match (support 'M. Mendoza' or 'M Mendoza')
+    if (btoks.length >= 2 && atoks.length >= 2) {
+      const bfirst = btoks[0];
+      const afirst = atoks[0];
+      if ((bfirst[0] === afirst[0]) && (blast && alast && blast === alast)) return true;
+      // also allow if first names equal and last name initial matches
+      if (afirst === bfirst) return true;
+    }
+
+    // try reversed order tokens (raw may be 'LAST FIRST' while DB is 'First Last')
+    const aReversed = normalizeName(`${athlete.lastName || ''} ${athlete.firstName || ''}`);
+    if (aReversed === b) return true;
+
+    // handle long raw tokens where first N tokens are last names (e.g., 'MONCADA AMADOR José Gabriel')
+    try {
+      if (btoks.length >= 4) {
+        const lastNamePart = btoks.slice(0, btoks.length - 2).join(' ');
+        const firstNamePart = btoks.slice(btoks.length - 2).join(' ');
+        const reconstructed = normalizeName(`${firstNamePart} ${lastNamePart}`);
+        if (a === reconstructed) return true;
+        const reconstructedAlt = normalizeName(`${btoks.slice(btoks.length - 1).join(' ')} ${btoks.slice(0, btoks.length - 1).join(' ')}`);
+        if (a === reconstructedAlt) return true;
+      }
+    } catch (e) {}
+
+    return false;
+  };
+
+  // small Levenshtein implementation for short tokens
+  const levenshtein = (a: string, b: string) => {
+    const la = a.length, lb = b.length;
+    if (la === 0) return lb;
+    if (lb === 0) return la;
+    const dp: number[] = Array(lb + 1).fill(0).map((_, i) => i);
+    for (let i = 1; i <= la; i++) {
+      let prev = dp[0];
+      dp[0] = i;
+      for (let j = 1; j <= lb; j++) {
+        const tmp = dp[j];
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        dp[j] = Math.min(dp[j] + 1, dp[j - 1] + 1, prev + cost);
+        prev = tmp;
+      }
+    }
+    return dp[lb];
+  };
+  // Delete confirmation modal state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const [deleteTargetLabel, setDeleteTargetLabel] = useState<string>('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // formatError imported from utils
+
+  useEffect(() => {
+    // On mount: fetch most recent event and a larger list for the selector so we can derive years.
+    (async () => {
+      try {
+        const recent = await eventsApi.getMostRecent();
+        // populate a larger list to extract available years and provide client-side filtering
+        const allRes = await eventsApi.getAll({ page: 1, limit: 200 });
+        const fetched = allRes.data.data || [];
+        setAllFetchedEvents(fetched);
+        // derive years from fetched events
+        const yrs = Array.from(new Set(fetched.map(ev => new Date(ev.startDate).getFullYear()))).sort((a, b) => b - a);
+        setYears(yrs);
+        // populate small list for selector (first page or filtered by selectedYear)
+        setEvents(fetched.slice(0, 10));
+        // DO NOT auto-select - let user choose
+      } catch (err) {
+        console.error('Error fetching initial events:', err);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (eventIdParam && events.length > 0) {
+      const event = events.find(e => e.id === Number(eventIdParam));
+      if (event) handleEventSelect(event);
+    }
+  }, [eventIdParam, events]);
+
+  useEffect(() => {
+    // Only fetch once when selectedEvent changes to avoid duplicate calls on many deps
+    if (!selectedEvent) return;
+    // fetch all results for the event in a single request (no phase/page/limit params)
+    fetchResults();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEvent]);
+
+  const handleEventSelect = async (event: Event) => {
+    setSelectedCategory(null);
+    setResults([]);
+
+    try {
+      // show spinner while loading event details and categories
+      setLoading(true);
+      const response = await eventsApi.getById(event.id);
+      const categories = response.data.data.eventCategories || [];
+
+      // Clear selectedPhase for now; fetchResults() will populate phases and set selectedPhase
+      setSelectedPhase(null);
+
+      // set selected event; this triggers fetchResults via the effect
+      setSelectedEvent(response.data.data as Event);
+    } catch (error) {
+      console.error('Error fetching event details:', error);
+      setLoading(false);
+    }
+  };
+
+  const openCategoryModal = useCallback(async (ec: EventCategory) => {
+    console.info('[AdminResults] openCategoryModal start', { eventCategoryId: ec.id, activeCategoryId: activeCategory?.id, categoryResultsLength: categoryResults?.length });
+    setActiveCategory(ec);
+    setShowCategoryModal(true);
+    setCategoryLoading(true);
+    // set default phase id for modal
+    const defaultPhaseId = ec.phases && ec.phases.length > 0 ? ec.phases[0].id : (globalPhases[0]?.id || null);
+    try {
+      // Use cached grouped results (fetched previously by fetchResults) and
+      // any optimistic pending inserts to avoid a new network call and races
+  const cached = resultsByCategory[ec.id] || [];
+  const pendingForCat = pendingInsertedRef.current[ec.id] || [];
+  const allForCat = (() => {
+    const byId = new Map<number, Result>();
+    for (const r of [...cached, ...pendingForCat]) byId.set(r.id, r);
+    return Array.from(byId.values());
+  })();
+  console.info('[AdminResults] openCategoryModal fetched from cache+pending', { eventCategoryId: ec.id, cachedLength: cached.length, pending: pendingForCat.length, mergedLength: allForCat.length });
+      let filtered = allForCat;
+      if (defaultPhaseId) {
+        const phaseObj = ec.phases?.find(p => p.id === defaultPhaseId) || globalPhases.find(p => p.id === defaultPhaseId);
+        if (phaseObj) filtered = allForCat.filter(r => (r as any).phase?.name === phaseObj.name);
+        setModalPhaseId(defaultPhaseId);
+      } else {
+        setModalPhaseId(null);
+      }
+  const final = filtered.slice().sort((a, b) => (a.position || 0) - (b.position || 0));
+  console.info('[AdminResults] openCategoryModal setCategoryResults', { eventCategoryId: ec.id, finalLength: final.length });
+  setCategoryResults(final);
+    } catch (err) {
+      console.error('Error fetching category results', err);
+      setCategoryResults([]);
+    } finally {
+      setCategoryLoading(false);
+    }
+  }, [globalPhases, resultsByCategory]);
+
+  // change phase inside modal
+  const handleCategoryPhaseChange = async (phaseId: number) => {
+    setCategoryLoading(true);
+    try {
+      // Filter cached results for the active category by the selected phase
+      if (!activeCategory) {
+        setCategoryResults([]);
+        return;
+      }
+      const phaseObj = activeCategory.phases?.find(p => p.id === phaseId) || globalPhases.find(p => p.id === phaseId);
+      const allForCat = resultsByCategory[activeCategory.id] || [];
+      const filtered = phaseObj ? allForCat.filter(r => (r as any).phase?.name === phaseObj.name) : allForCat;
+      setModalPhaseId(phaseId);
+      setCategoryResults(filtered.slice().sort((a, b) => (a.position || 0) - (b.position || 0)));
+    } catch (e) {
+      setCategoryResults([]);
+    } finally {
+      setCategoryLoading(false);
+    }
+  };
+
+  const handleSaveCategoryChanges = async () => {
+    if (!activeCategory) return;
+    setCategoryLoading(true);
+    try {
+      // Persist any pending local items for this active category
+      const pending = (resultsByCategory[activeCategory.id] || []).filter((r: any) => (r.id && r.id < 0) || r.__pending);
+      if (pending.length > 0) {
+        try {
+          console.info('[AdminResults] persisting pending items', { eventCategoryId: activeCategory.id, count: pending.length });
+        } catch (e) {}
+        for (const p of pending) {
+          try {
+            // send create request for each pending item
+            const payload = {
+              eventCategoryId: activeCategory.id,
+              phaseName: (p.phase && p.phase.name) || 'QUALIFICATION',
+              athleteId: p.athlete?.id,
+              score: p.score,
+              position: p.position,
+            };
+            const createRes: any = await resultsApi.create(payload as any);
+            const created = createRes?.data?.data ? (Array.isArray(createRes.data.data) ? createRes.data.data[0] : createRes.data.data) : null;
+            if (created && created.id) {
+              const real: Partial<Result> & { id: number } = {
+                id: created.id,
+                score: created.score ?? p.score,
+                position: created.position ?? p.position,
+                athlete: created.athlete ? { id: created.athlete.id, firstName: created.athlete.firstName, lastName: created.athlete.lastName } : p.athlete,
+                phase: created.phase ? { id: created.phase.id, name: created.phase.name } : p.phase,
+              };
+              replaceTempResultId(p.id, real);
+            }
+          } catch (e) {
+            console.error('Error persisting pending result', e);
+          }
+        }
+        // After persisting, invalidate cache so background fetch picks up new rows
+        if (selectedEvent) resultsApi.invalidateSummary(selectedEvent.id);
+        scheduleFetchResults();
+        // give background a brief moment to reconcile, then fetch fresh data
+        await fetchResults({ silent: true });
+        // clear any pending freeze for this category now that we've persisted
+        try {
+          if (activeCategory) {
+            pendingFreezeCategoriesRef.current.delete(activeCategory.id);
+            if (pendingFreezeTimersRef.current[activeCategory.id]) {
+              clearTimeout(pendingFreezeTimersRef.current[activeCategory.id]);
+              delete pendingFreezeTimersRef.current[activeCategory.id];
+            }
+          }
+        } catch (e) {}
+      }
+      try { console.info('[AdminResults] save-category setCategoryMessage (before)', { activeCategoryId: activeCategory?.id, cachedLength: (activeCategory?.id && resultsByCategory[activeCategory.id]) ? resultsByCategory[activeCategory.id].length : 0 }); } catch (e) {}
+      setCategoryMessage('✅ Cambios guardados');
+      setTimeout(() => setCategoryMessage(''), 3000);
+      // Refresh modal contents from the newly fetched cache
+      await openCategoryModal(activeCategory);
+    } catch (e) {
+      console.error('Error guardando cambios de categoría', e);
+      try { console.info('[AdminResults] save-category setCategoryMessage error (before)', { activeCategoryId: activeCategory?.id }); } catch (e) {}
+      setCategoryMessage('Error al guardar cambios');
+      setTimeout(() => setCategoryMessage(''), 3000);
+    } finally {
+      setCategoryLoading(false);
+    }
+  };
+
+  const closeCategoryModal = async () => {
+    // Attempt to persist/refresh any recent changes so the category card updates when closing
+    try {
+      await handleSaveCategoryChanges();
+    } catch (e) {
+      // ignore - still close
+    }
+
+    setShowCategoryModal(false);
+    setActiveCategory(null);
+    setCategoryResults([]);
+    setQuickForm({ athleteId: '', score: '', position: '' });
+    setAthleteOptions([]);
+    setAthleteSearch('');
+    setCategoryMessage('');
+    // ensure summary refresh (debounced) so cards reflect newest counts
+    scheduleFetchResults();
+  };
+
+  // Debounced athlete search
+  useEffect(() => {
+    if (athleteSearchTimeout.current) window.clearTimeout(athleteSearchTimeout.current as any);
+    
+    athleteSearchTimeout.current = window.setTimeout(async () => {
+      try {
+        // If search is empty, load first batch of athletes; otherwise search
+        const res = await athletesApi.getAll({ q: athleteSearch || '', limit: 50 });
+        setAthleteOptions(res.data.data);
+      } catch (e) {
+        console.error('Error loading athletes:', e);
+      }
+    }, athleteSearch ? 300 : 0) as any; // Immediate load if empty search, debounce if typing
+    
+    return () => { if (athleteSearchTimeout.current) window.clearTimeout(athleteSearchTimeout.current as any); };
+  }, [athleteSearch]);
+
+  // Schedule a (debounced) refresh of results to coalesce rapid updates
+  const scheduleFetchResults = (delay = 500) => {
+    if (fetchDebounceRef.current) window.clearTimeout(fetchDebounceRef.current as any);
+    try { console.info('[AdminResults] scheduleFetchResults', { delay, time: new Date().toISOString() }); } catch (e) {}
+    fetchDebounceRef.current = window.setTimeout(() => {
+      try { console.info('[AdminResults] scheduleFetchResults firing fetchResults', { time: new Date().toISOString() }); } catch (e) {}
+      fetchResults({ silent: true });
+    }, delay) as any;
+  };
+
+  // Helpers to update the local grouped cache optimistically
+  const addResultToCache = (eventCategoryId: number, r: Result) => {
+    setResultsByCategory(prev => {
+      const copy = { ...prev } as Record<number, Result[]>;
+      const arr = (copy[eventCategoryId] || []).concat(r).slice().sort((a, b) => (a.position || 0) - (b.position || 0));
+      copy[eventCategoryId] = arr;
+      try { console.info('[AdminResults] addResultToCache', { eventCategoryId, newCount: arr.length, addedId: r.id }); } catch (e) {}
+      return copy;
+    });
+    setResults(prev => {
+      const arr = prev.filter(x => x.id !== r.id).concat(r).slice().sort((a, b) => (a.position || 0) - (b.position || 0));
+      try { console.info('[AdminResults] addResultToCache updating flat results', { totalFlat: arr.length }); } catch (e) {}
+      return arr;
+    });
+        // clear pendingInsertedRef for this category since we've persisted them
+        try {
+          if (activeCategory) {
+            delete pendingInsertedRef.current[activeCategory.id];
+          }
+        } catch (e) {}
+    // update selectedEvent category counts immediately so cards reflect optimistic adds
+    try {
+      setSelectedEvent(prev => {
+        if (!prev || !(prev as any).eventCategories) return prev;
+        const updated = ((prev as any).eventCategories || []).map((ec: any) => {
+          if (ec.id === eventCategoryId) {
+            const current = (ec._count && typeof ec._count.results === 'number') ? ec._count.results : 0;
+            return { ...ec, _count: { results: current + 1 } };
+          }
+          return ec;
+        });
+        return { ...prev, eventCategories: updated } as Event;
+      });
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const updateResultInCache = (id: number, updates: Partial<Result>) => {
+    setResults(prev => prev.map(r => (r.id === id ? { ...r, ...updates } : r)).slice().sort((a, b) => (a.position || 0) - (b.position || 0)));
+    // briefly suspend background merges to avoid immediate overwrite of optimistics
+  try { suspendMergeUntilRef.current = Date.now() + 3000; console.info('[AdminResults] suspendMergeUntil set', { until: suspendMergeUntilRef.current }); } catch (e) {}
+    setResultsByCategory(prev => {
+      const copy = { ...prev } as Record<number, Result[]>;
+      for (const k of Object.keys(copy)) {
+        copy[Number(k)] = copy[Number(k)].map(r => (r.id === id ? { ...r, ...updates } : r)).slice().sort((a, b) => (a.position || 0) - (b.position || 0));
+      }
+      return copy;
+    });
+  };
+
+  const removeResultFromCache = (id: number) => {
+    setResults(prev => {
+      try { console.info('[AdminResults] removeResultFromCache removing flat id', { id, prevFlat: prev.length }); } catch (e) {}
+      return prev.filter(r => r.id !== id);
+    });
+    setResultsByCategory(prev => {
+      const copy = { ...prev } as Record<number, Result[]>;
+      let removedFromCategory: number | null = null;
+      for (const k of Object.keys(copy)) {
+        const arr = copy[Number(k)].filter(r => r.id !== id);
+        if (arr.length !== copy[Number(k)].length) removedFromCategory = Number(k);
+        copy[Number(k)] = arr;
+      }
+      try { console.info('[AdminResults] removeResultFromCache grouped removal', { removedFromCategory, keys: Object.keys(copy).length }); } catch (e) {}
+      // adjust selectedEvent counts if we removed from a category
+      if (removedFromCategory !== null) {
+        try {
+          setSelectedEvent(prev => {
+            if (!prev || !(prev as any).eventCategories) return prev;
+            const updated = ((prev as any).eventCategories || []).map((ec: any) => {
+              if (ec.id === removedFromCategory) {
+                const current = (ec._count && typeof ec._count.results === 'number') ? ec._count.results : 0;
+                return { ...ec, _count: { results: Math.max(0, current - 1) } };
+              }
+              return ec;
+            });
+            return { ...prev, eventCategories: updated } as Event;
+          });
+        } catch (e) {
+          // ignore
+        }
+      }
+      return copy;
+    });
+    // briefly suspend merges to avoid server snapshots re-inserting removed rows
+  try { suspendMergeUntilRef.current = Date.now() + 3000; console.info('[AdminResults] suspendMergeUntil set (remove)', { until: suspendMergeUntilRef.current }); } catch (e) {}
+  };
+
+  const handleQuickAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeCategory || !selectedEvent) return;
+    // Resolve athleteId if user entered a name in athleteSearch but didn't select id
+    let resolvedAthleteId = quickForm.athleteId;
+    if ((!resolvedAthleteId || resolvedAthleteId === '') && athleteSearch) {
+      const q = athleteSearch.trim();
+      const found = athleteOptions.find(a => isNameMatch(a, q));
+      if (found) resolvedAthleteId = String(found.id);
+    }
+
+    // Validación
+    if (!resolvedAthleteId || !quickForm.score || !quickForm.position) {
+      setCategoryError('Por favor completa todos los campos (Atleta, Score, Posición)');
+      setTimeout(() => setCategoryError(''), 3000);
+      return;
+    }
+    
+    try {
+      const phaseName = (activeCategory.phases && activeCategory.phases[0] && activeCategory.phases[0].name) || 'QUALIFICATION';
+      // optimistic add locally as PENDING (do NOT persist to server yet)
+      const athleteObj = athleteOptions.find(a => a.id === Number(resolvedAthleteId));
+      const optimistic = {
+        // use negative ids for optimistic entries so we can distinguish them from real DB ids
+        id: -Date.now(),
+        athlete: { id: Number(resolvedAthleteId), firstName: athleteObj?.firstName || '', lastName: athleteObj?.lastName || '' },
+        score: Number(quickForm.score),
+        position: Number(quickForm.position),
+        phase: { id: 0, name: phaseName },
+        eventCategory: { distance: activeCategory.distance },
+        __pending: true,
+        nameMatched: true,
+        matchedName: `${athleteObj?.firstName || ''} ${athleteObj?.lastName || ''}`,
+      } as any;
+      setCategoryResults(prev => [...prev, optimistic].sort((a,b) => a.position - b.position));
+      // update grouped cache and flat results optimistically (pending)
+      addResultToCache(activeCategory.id, optimistic as Result);
+      try { suspendMergeUntilRef.current = Date.now() + 2000; console.info('[AdminResults] suspendMergeUntil set (quick-add)', { until: suspendMergeUntilRef.current }); } catch (e) {}
+      setQuickForm({ athleteId: '', score: '', position: '' });
+      debugCategoryState('quick-add before message');
+      try { console.info('[AdminResults] quick-add setCategoryMessage (before)', { activeCategoryId: activeCategory?.id, categoryResultsLength: categoryResults?.length, cachedLength: (activeCategory?.id && resultsByCategory[activeCategory.id]) ? resultsByCategory[activeCategory.id].length : 0 }); } catch (e) {}
+      setCategoryMessage('✅ Resultado agregado (pendiente). Guarda los cambios para persistir.');
+      setTimeout(() => setCategoryMessage(''), 3000);
+      // do NOT send to server now; user will press "Guardar" in the modal to persist
+      if (activeCategory) await openCategoryModal(activeCategory);
+    } catch (err) {
+      console.error('Error adding result', err);
+      setCategoryError('Error al guardar el resultado');
+      setTimeout(() => setCategoryError(''), 3000);
+      // attempt to refresh cache anyway
+      scheduleFetchResults();
+      if (activeCategory) await openCategoryModal(activeCategory);
+    }
+  };
+
+  // Preview IANSEO parsing without importing
+  const handlePreviewFromIANSEO = async () => {
+    setImportError('');
+    if (!ianseoUrl.trim()) {
+      setImportError('Por favor ingresa una URL de IANSEO');
+      return;
+    }
+    setImportLoading(true);
+    setImportPreview([]);
+    try {
+      const resp = await api.get('/import/ianseo', { params: { url: ianseoUrl } });
+      const raw: Array<any> = resp.data.data || [];
+      const rows = raw.map((r) => ({ position: r.position, name: r.name, total: Number(r.total ?? r.score ?? 0) }));
+      if (!rows.length) {
+        setImportError('No se encontraron resultados en la URL.');
+        return;
+      }
+      setImportPreview(rows);
+      setImportPreviewing(true);
+    } catch (err: any) {
+      console.error('Error previewing IANSEO:', err);
+      const msg = err?.response?.data?.message || err?.message || 'Error al obtener vista previa desde IANSEO.';
+      setImportError(msg);
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  // Confirm import from preview: perform the actual creation of results
+  const handleConfirmImportFromPreview = async () => {
+    if (!activeCategory || !selectedEvent) {
+      setImportError('Selecciona un evento y categoría antes de confirmar la importación');
+      return;
+    }
+    setImportLoading(true);
+    setImportError('');
+    try {
+      const phaseName = activeCategory.phases?.[0]?.name || 'QUALIFICATION';
+      let importedCount = 0;
+      let notFoundCount = 0;
+
+      const normalize = (s: string) => s.normalize?.('NFD')?.replace(/\p{Diacritic}/gu, '')?.replace(/\s+/g, ' ')?.trim().toLowerCase() || s.toLowerCase();
+
+  const tempInserted: Result[] = [];
+  for (const item of importPreview) {
+        const nameNorm = normalize(item.name);
+        let matchedAthlete = athleteOptions.find(a => isNameMatch(a, item.name));
+
+            if (!matchedAthlete) {
+          try {
+            const q = item.name.split(',')[0] || item.name;
+            const r = await athletesApi.getAll({ q: q, limit: 5 });
+            const candidates = r.data.data || [];
+            // use isNameMatch for candidates to be tolerant with ordering/diacritics/initials
+            matchedAthlete = candidates.find(a => isNameMatch(a, item.name));
+            if (matchedAthlete) setAthleteOptions(prev => {
+              const merged = [...prev, matchedAthlete];
+              const byId = new Map<number, Athlete>();
+              merged.forEach(a => { if (a) byId.set(a.id, a); });
+              return Array.from(byId.values());
+            });
+          } catch (e) {
+            // ignore
+          }
+        }
+
+        if (matchedAthlete) {
+          try {
+            // optimistic insert into modal & cache so user sees results immediately
+            const tempId = -(Date.now() + Math.floor(Math.random() * 1000));
+            const optimistic: any = {
+              id: tempId,
+              athlete: { id: matchedAthlete.id, firstName: matchedAthlete.firstName, lastName: matchedAthlete.lastName, club: matchedAthlete.club ? { name: matchedAthlete.club.name } : undefined },
+              score: item.total,
+              position: item.position,
+              phase: { id: modalPhaseId || (activeCategory.phases && activeCategory.phases[0]?.id) || 0, name: phaseName },
+              eventCategory: { distance: activeCategory.distance }
+            } as Result;
+
+            // update modal list and grouped cache (mark as pending) and attach name-match info
+            optimistic.__pending = true;
+            optimistic.nameMatched = true;
+            optimistic.matchedName = `${matchedAthlete.firstName} ${matchedAthlete.lastName}`;
+            setCategoryResults(prev => {
+              const byId = new Map<number, Result>();
+              for (const r of [...prev, optimistic]) byId.set(r.id, r);
+              return Array.from(byId.values()).slice().sort((a, b) => (a.position || 0) - (b.position || 0));
+            });
+            addResultToCache(activeCategory.id, optimistic);
+            // also record in pendingInsertedRef so openCategoryModal can merge if cache not flushed yet
+            try {
+              const arr = pendingInsertedRef.current[activeCategory.id] || [];
+              pendingInsertedRef.current[activeCategory.id] = [...arr, optimistic];
+            } catch (e) {}
+            // mark this category as frozen so background fetches won't overwrite
+            try {
+              pendingFreezeCategoriesRef.current.add(activeCategory.id);
+              if (pendingFreezeTimersRef.current[activeCategory.id]) clearTimeout(pendingFreezeTimersRef.current[activeCategory.id]);
+              // auto-clear freeze after 5 minutes in case user walks away
+              pendingFreezeTimersRef.current[activeCategory.id] = setTimeout(() => {
+                try { pendingFreezeCategoriesRef.current.delete(activeCategory.id); delete pendingFreezeTimersRef.current[activeCategory.id]; } catch (e) {}
+              }, 5 * 60 * 1000) as any;
+              console.info('[AdminResults] pendingFreeze set for category', { eventCategoryId: activeCategory.id });
+            } catch (e) {}
+            tempInserted.push(optimistic);
+            // prevent background fetches from immediately overwriting these optimistic rows
+            try { suspendMergeUntilRef.current = Date.now() + 3000; console.info('[AdminResults] suspendMergeUntil set (import-preview)', { until: suspendMergeUntilRef.current }); } catch (e) {}
+            // Do NOT send create request now. We'll persist pending items when the user
+            // clicks 'Guardar' (handleSaveCategoryChanges). This keeps modal-local edits
+            // until explicit save.
+            importedCount++;
+          } catch (e) {
+            console.error('Error importing result for', matchedAthlete.firstName, matchedAthlete.lastName, e);
+          }
+            } else {
+          // No athlete match found: insert a pending row so user can see and edit it
+          try {
+            const tempId = -(Date.now() + Math.floor(Math.random() * 1000));
+            const optimistic: any = {
+              id: tempId,
+              athlete: { id: 0, firstName: '', lastName: item.name },
+              score: item.total,
+              position: item.position,
+              phase: { id: modalPhaseId || (activeCategory.phases && activeCategory.phases[0]?.id) || 0, name: phaseName },
+              eventCategory: { distance: activeCategory.distance },
+              __pending: true,
+              nameMatched: false,
+              matchedName: '',
+              sourceName: item.name,
+            } as Result;
+            setCategoryResults(prev => {
+              const byId = new Map<number, Result>();
+              for (const r of [...prev, optimistic]) byId.set(r.id, r);
+              return Array.from(byId.values()).slice().sort((a, b) => (a.position || 0) - (b.position || 0));
+            });
+            addResultToCache(activeCategory.id, optimistic);
+            tempInserted.push(optimistic);
+            try {
+              const arr = pendingInsertedRef.current[activeCategory.id] || [];
+              pendingInsertedRef.current[activeCategory.id] = [...arr, optimistic];
+            } catch (e) {}
+            try { suspendMergeUntilRef.current = Date.now() + 3000; console.info('[AdminResults] suspendMergeUntil set (import-preview-unmatched)', { until: suspendMergeUntilRef.current }); } catch (e) {}
+            importedCount++;
+            notFoundCount++;
+          } catch (e) {
+            console.error('Error inserting unmatched optimistic row for', item.name, e);
+            notFoundCount++;
+          }
+        }
+      }
+
+      // Ensure modal shows imported optimistic rows even if resultsByCategory hasn't flushed yet
+      try {
+        const existing = resultsByCategory[activeCategory.id] || [];
+        const byId = new Map<number, Result>();
+        for (const r of [...existing, ...tempInserted]) byId.set(r.id, r);
+        const merged = Array.from(byId.values()).slice().sort((a, b) => (a.position || 0) - (b.position || 0));
+        setCategoryResults(merged);
+      // ensure we clear any freeze timers that might have been set earlier for this active category
+      try {
+        if (activeCategory && pendingFreezeTimersRef.current[activeCategory.id]) {
+          clearTimeout(pendingFreezeTimersRef.current[activeCategory.id]);
+          delete pendingFreezeTimersRef.current[activeCategory.id];
+        }
+      } catch (e) {
+        // ignore
+      }
+      } catch (e) {
+        // ignore
+      }
+
+      // Insert imported results into modal view and cache so user sees them immediately
+  debugCategoryState('import-preview after insert');
+    try { console.info('[AdminResults] import-preview inserted (pending)', { activeCategoryId: activeCategory?.id, importedCount, notFoundCount, categoryResultsLength: categoryResults?.length, cachedLength: (activeCategory?.id && resultsByCategory[activeCategory.id]) ? resultsByCategory[activeCategory.id].length : 0 }); } catch (e) {}
+
+    // clear preview and close import modal, keep category modal open
+    setImportPreview([]);
+    setImportPreviewing(false);
+    setIanseoUrl('');
+    setShowImportModal(false);
+
+    // Do NOT refresh server-side here: items are pending until the user clicks 'Guardar'.
+    // Refresh the modal view from the local cache so the user sees pending rows.
+    if (activeCategory) await openCategoryModal(activeCategory);
+    } catch (err: any) {
+      console.error('Error importing from preview:', err);
+      const msg = err?.response?.data?.message || err?.message || 'Error al importar desde IANSEO.';
+      setImportError(msg);
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleShowAddCategory = async () => {
+    try {
+      // Fetch all categories and modalities for the form dropdown
+      const [categoriesRes, modalitiesRes] = await Promise.all([
+        categoriesApi.getAll(),
+        modalitiesApi.getAll()
+      ]);
+      setAllCategories(categoriesRes.data.data || []);
+      setAllModalities(modalitiesRes.data.data || []);
+      
+      // Initialize form with first available category and modality
+      setAddCategoryForm({
+        categoryId: categoriesRes.data.data?.[0]?.id?.toString() || '',
+        modalityId: modalitiesRes.data.data?.[0]?.id?.toString() || '',
+        phases: ['QUALIFICATION', 'FINAL'],
+        distance: '',
+      });
+      setShowAddCategoryModal(true);
+      setError('');
+    } catch (err) {
+      console.error('Error fetching categories/modalities:', err);
+      setError('Error al cargar categorías y modalidades');
+    }
+  };
+
+  const handleCloseAddCategory = () => {
+    setShowAddCategoryModal(false);
+    setError('');
+  };
+
+  const handleAddCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEvent) {
+      setError('Seleccione un evento antes de agregar una categoría');
+      return;
+    }
+    try {
+      setError('');
+      const payload: any = {
+        categoryId: Number(addCategoryForm.categoryId),
+        modalityId: Number(addCategoryForm.modalityId),
+        phases: addCategoryForm.phases,
+      };
+      if (addCategoryForm.distance) payload.distance = addCategoryForm.distance;
+      await eventsApi.addCategory(selectedEvent.id, payload);
+      // Refresh event details to show new category
+      await handleEventSelect(selectedEvent);
+      setShowAddCategoryModal(false);
+      setSuccess('Categoría agregada al evento');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      console.error('Error adding category to event', err);
+      setError(formatError(err) || 'Error al agregar categoría');
+    }
+  };
+
+  const fetchResults = async (opts?: { silent?: boolean }) => {
+    if (!selectedEvent) return;
+
+    // If there's an in-flight fetch promise, return it (dedupe concurrent callers)
+    if (fetchPromiseRef.current) {
+      return fetchPromiseRef.current;
+    }
+
+    const silent = opts?.silent === true;
+    // Rate-limit silent/background fetches to avoid rapid repeated requests
+    if (silent) {
+      const now = Date.now();
+      if (now - fetchLastTsRef.current < 500) {
+        // skip because a recent fetch completed very recently
+        console.info('[AdminResults] skipping silent fetch - rate limit');
+        return;
+      }
+      // otherwise allow and mark start time
+      fetchLastTsRef.current = now;
+    }
+    if (!silent) setLoading(true);
+  try { console.info('[AdminResults] fetchResults start', { eventId: selectedEvent.id, silent, time: new Date().toISOString() }); } catch (e) {}
+
+    // store the promise so concurrent callers reuse it
+    fetchPromiseRef.current = (async () => {
+      try {
+        // Diagnostics: count and time requests
+        // Perform a single request for all results of the event
+        const response = await resultsApi.getSummaryByEvent(selectedEvent.id);
+
+      // Backwards compatible: response.data.data used to be an array; newer API returns { grouped, phases }
+      let grouped: any[] = [];
+      const payload = response.data.data;
+      if (Array.isArray(payload)) {
+        grouped = payload;
+      } else if (payload && payload.grouped) {
+        grouped = payload.grouped;
+        // If server returned phases and we don't yet have them, use them to avoid a second request
+        if (payload.phases && globalPhases.length === 0) {
+          try {
+            setGlobalPhases(payload.phases.map((p: any) => ({ id: p.id, name: p.name, order: p.orderIndex })));
+            if (payload.phases.length > 0) setSelectedPhase(payload.phases[0].id);
+          } catch (e) {
+            // ignore
+          }
+        }
+      }
+      // flatten results for legacy areas and build map by eventCategory
+      const map: Record<number, Result[]> = {};
+      const flat: Result[] = [];
+      for (const g of grouped) {
+        const ecId = g.eventCategoryId;
+        const list: Result[] = (g.results || []).map((r: any) => ({
+          id: r.id,
+          score: r.score,
+          position: r.position,
+          athlete: { id: r.athlete.id, firstName: r.athlete.firstName, lastName: r.athlete.lastName, club: r.athlete.club ? { name: r.athlete.club.name } : undefined },
+          phase: { id: r.phase.id, name: r.phase.name },
+          eventCategory: { distance: g.distance },
+        }));
+        map[ecId] = list.slice().sort((a, b) => (a.position || 0) - (b.position || 0));
+        flat.push(...map[ecId]);
+      }
+      // update selectedEvent's category counts so the cards reflect current numbers
+      // Avoid updating selectedEvent if counts didn't change to prevent re-triggering the
+      // effect that calls fetchResults (this was causing repeated requests).
+      try {
+        setSelectedEvent(prev => {
+          if (!prev || !(prev as any).eventCategories) return prev;
+          const prevCats = (prev as any).eventCategories || [];
+          let changed = false;
+          const updatedCats = prevCats.map((ec: any) => {
+            const newCount = (map[ec.id] || []).length;
+            const prevCount = (ec._count && typeof ec._count.results === 'number') ? ec._count.results : 0;
+            if (newCount !== prevCount) changed = true;
+            return { ...ec, _count: { results: newCount } };
+          });
+          if (!changed) return prev; // no-op to avoid re-render loop
+          return { ...prev, eventCategories: updatedCats } as Event;
+        });
+      } catch (e) {
+        // ignore
+      }
+      // Merge server results with any optimistic items currently in resultsByCategory
+      // This prevents optimistic rows (temporary ids) from being dropped while the server
+      // is still persisting them and avoids the modal briefly becoming empty.
+      setResultsByCategory(prev => {
+        const merged = { ...map } as Record<number, Result[]>;
+        try {
+          for (const k of Object.keys(prev)) {
+            const keyNum = Number(k);
+            const prevList = prev[keyNum] || [];
+            // If this category is frozen due to pending optimistic inserts, or
+            // we're within the short suspend window, prefer keeping the optimistic
+            // list to avoid it being overwritten by a server snapshot that may
+            // not include just-created rows yet. Otherwise, merge server + optimistic extras.
+            const now = Date.now();
+            if (pendingFreezeCategoriesRef.current.has(keyNum) || (now < suspendMergeUntilRef.current && prevList.length > 0)) {
+              merged[keyNum] = prevList.slice();
+            } else if (!merged[keyNum] || merged[keyNum].length === 0) {
+              // keep optimistic list if server didn't return anything yet for this category
+              merged[keyNum] = prevList.slice();
+            } else {
+              // include any optimistic entries that the server hasn't returned yet
+              const existingIds = new Set(merged[keyNum].map(r => r.id));
+              const extras = prevList.filter(r => !existingIds.has(r.id));
+              if (extras.length) merged[keyNum] = merged[keyNum].concat(extras);
+            }
+            // ensure ordering
+            merged[keyNum] = merged[keyNum].slice().sort((a, b) => (a.position || 0) - (b.position || 0));
+          }
+        } catch (e) {
+          // fallback: if merging fails, just use server map
+        }
+        // ensure server lists sorted as well
+        for (const kk of Object.keys(merged)) {
+          merged[Number(kk)] = merged[Number(kk)].slice().sort((a, b) => (a.position || 0) - (b.position || 0));
+        }
+        try {
+          const mergedSummary = Object.keys(merged).map(k => ({ ecId: Number(k), count: (merged[Number(k)] || []).length }));
+          console.info('[AdminResults] fetchResults merged grouped results', { mergedSummary });
+        } catch (e) {}
+        // update flat results based on merged
+        const mergedFlat: Result[] = [];
+        for (const k of Object.keys(merged)) mergedFlat.push(...merged[Number(k)]);
+        setResults(mergedFlat.slice().sort((a: Result, b: Result) => (a.position || 0) - (b.position || 0)));
+        return merged;
+      });
+      } catch (error) {
+        console.error('Error fetching results:', error);
+      } finally {
+        fetchInProgressRef.current = false;
+        if (!silent) setLoading(false);
+        // update last fetch timestamp
+        fetchLastTsRef.current = Date.now();
+        // clear the stored promise so future fetches create a new one
+        fetchPromiseRef.current = null;
+      }
+    })();
+
+    return fetchPromiseRef.current;
+  };
+  
+  // Pagination UI handlers (deprecated - removed pagination UI)
+  // const handleLimitChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  //   setLimit(Number(e.target.value));
+  //   setPage(1);
+  // };
+
+  const handleShowModal = () => {
+    setEditingResult(null);
+    setFormData({ athleteId: '', score: '', position: '' });
+    // Lazily fetch athletes when opening modal to avoid fetching all athletes on page load
+    (async () => {
+      try {
+        const res = await athletesApi.getAll({ page: 1, limit: 200 });
+        setAthletes(res.data.data);
+      } catch (err) {
+        // ignore
+      }
+    })();
+
+    setShowModal(true);
+    setError('');
+  };
+
+  const handleEditResult = (result: Result) => {
+    setEditingResult(result);
+    setFormData({ athleteId: String(result.athlete.id), score: String(result.score), position: String(result.position) });
+    // Ensure the athlete appears in the select; fetch if missing
+    (async () => {
+      try {
+        const existing = athletes.find(a => a.id === result.athlete.id);
+        if (!existing) {
+          const res = await athletesApi.getAll({ page: 1, limit: 1, q: result.athlete.firstName });
+          if (res.data.data && res.data.data.length > 0) {
+            setAthletes((prev) => [...prev, ...res.data.data]);
+          } else {
+            // Fetch by id as fallback
+            const byId = await athletesApi.getById(result.athlete.id);
+            setAthletes((prev) => [...prev, byId.data.data]);
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+
+    setShowModal(true);
+    setError('');
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setError('');
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (!selectedCategory || !selectedPhase) {
+      setError('Seleccione una categoría y fase');
+      return;
+    }
+
+    try {
+      const phaseObj = selectedCategory.phases.find(p => p.id === (selectedPhase as number));
+      const phaseName = phaseObj ? phaseObj.name : '';
+
+      // Close modal immediately to make UI feel snappier
+      setShowModal(false);
+
+      // Optimistic update: if creating, add a temp result; if editing, update the list
+      const optimistic = {
+        id: editingResult ? editingResult.id : -Date.now(),
+        score: Number(formData.score),
+        position: Number(formData.position),
+        athlete: {
+          id: Number(formData.athleteId),
+          firstName: (athletes.find(a => a.id === Number(formData.athleteId))?.firstName) || '',
+          lastName: (athletes.find(a => a.id === Number(formData.athleteId))?.lastName) || '',
+          club: undefined,
+        },
+        phase: { id: phaseObj?.id || 0, name: phaseName },
+        eventCategory: { distance: selectedCategory?.distance },
+      } as any;
+
+      setResults((prev) => {
+        if (editingResult) {
+          return prev.map((r) => (r.id === editingResult.id ? { ...r, score: optimistic.score, position: optimistic.position } : r)).sort((a, b) => a.position - b.position);
+        }
+        return [...prev, optimistic].sort((a: Result, b: Result) => a.position - b.position);
+      });
+      // suspend merges briefly so background fetches don't overwrite this optimistic add
+  try { suspendMergeUntilRef.current = Date.now() + 3000; console.info('[AdminResults] suspendMergeUntil set (submit)', { until: suspendMergeUntilRef.current }); } catch (e) {}
+
+      if (editingResult) {
+        if (editingResult.id < 0 || (editingResult as any).__pending) {
+          // editing a pending local entry: just update local caches
+          updateResultInCache(editingResult.id, { score: Number(formData.score), position: Number(formData.position) });
+        } else {
+          // optimistic update already applied to state; send update in background and schedule refresh
+          resultsApi.update(editingResult.id, {
+            score: Number(formData.score),
+            position: Number(formData.position),
+          }).then(() => {
+            if (selectedEvent) resultsApi.invalidateSummary(selectedEvent.id);
+            scheduleFetchResults();
+          }).catch((e) => { console.error(e); scheduleFetchResults(); });
+        }
+      } else {
+        // create locally as pending; do NOT send to server until explicit save
+        (optimistic as any).__pending = true;
+        // already added to local state above
+      }
+
+      setModalResultMessage('Resultado guardado correctamente');
+  // Do not refresh server immediately — items are pending until user saves.
+      if (showCategoryModal && activeCategory) {
+        await openCategoryModal(activeCategory);
+      }
+      setTimeout(() => setModalResultMessage(''), 3000);
+    } catch (err: any) {
+      setModalResultError(formatError(err) || 'Error al guardar el resultado');
+      // Re-fetch to ensure optimistic changes are reconciled
+      scheduleFetchResults();
+    }
+  };
+
+  const handleDeleteResult = async (resultId: number) => {
+    // Deprecated - use confirm modal instead. Keep for safety but not used directly.
+    try {
+      // optimistic remove from UI
+      removeResultFromCache(resultId);
+      // also update modal list immediately if open
+      setCategoryResults(prev => prev.filter(r => r.id !== resultId));
+      setCategoryMessage('Resultado eliminado');
+      // If this was a temporary optimistic id (negative), avoid calling server delete
+      if (resultId < 0) {
+        // just refresh UI/cache client-side
+        if (selectedEvent) resultsApi.invalidateSummary(selectedEvent.id);
+        scheduleFetchResults();
+        if (activeCategory) openCategoryModal(activeCategory);
+      } else {
+        // attempt server delete but treat 404 as success (maybe was optimistic/duplicated)
+        resultsApi.delete(resultId).then(() => {
+          // invalidate client cache for this event so background fetch won't re-insert stale rows
+          if (selectedEvent) resultsApi.invalidateSummary(selectedEvent.id);
+          // refresh background cache later; also refresh modal from local cache immediately
+          scheduleFetchResults();
+          if (activeCategory) openCategoryModal(activeCategory);
+        }).catch((e: any) => {
+          if (e?.response?.status === 404) {
+            console.warn('Delete returned 404 (likely already removed) - continuing');
+            if (selectedEvent) resultsApi.invalidateSummary(selectedEvent.id);
+          } else {
+            console.error(e);
+          }
+          scheduleFetchResults();
+        });
+      }
+      setTimeout(() => setCategoryMessage(''), 3000);
+    } catch (err: any) {
+      setCategoryError(formatError(err) || 'Error al eliminar');
+    }
+  };
+
+  const handleRequestDelete = (resultId: number, label: string) => {
+    setDeleteTargetId(resultId);
+    setDeleteTargetLabel(label);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTargetId) return setShowDeleteConfirm(false);
+    setDeleteLoading(true);
+    try {
+      removeResultFromCache(deleteTargetId);
+      // remove from modal view immediately so the user sees the change without closing
+      setCategoryResults(prev => prev.filter(r => r.id !== deleteTargetId));
+      // If the id is temporary (negative) we already removed it client-side; don't call server
+      if (deleteTargetId < 0) {
+        if (selectedEvent) resultsApi.invalidateSummary(selectedEvent.id);
+        // refresh background cache later; refresh modal immediately from local cache
+        scheduleFetchResults();
+        if (activeCategory) await openCategoryModal(activeCategory);
+      } else {
+        // Try server delete; if 404 treat as success (already removed)
+        try {
+          await resultsApi.delete(deleteTargetId);
+          // invalidate client cache to avoid stale cached summaries
+          if (selectedEvent) resultsApi.invalidateSummary(selectedEvent.id);
+        } catch (err: any) {
+          if (err?.response?.status === 404) {
+            console.warn('Delete returned 404 - treating as removed');
+            if (selectedEvent) resultsApi.invalidateSummary(selectedEvent.id);
+          } else {
+            throw err;
+          }
+        }
+        // refresh background cache later; refresh modal immediately from local cache
+        scheduleFetchResults();
+        if (activeCategory) await openCategoryModal(activeCategory);
+      }
+  debugCategoryState('delete-helper before message');
+  debugCategoryState('confirm-delete before message');
+  try { console.info('[AdminResults] confirm-delete setCategoryMessage (before)', { deleteTargetId, activeCategoryId: activeCategory?.id, categoryResultsLength: categoryResults?.length, cachedLength: (activeCategory?.id && resultsByCategory[activeCategory.id]) ? resultsByCategory[activeCategory.id].length : 0 }); } catch (e) {}
+  setCategoryMessage('Resultado eliminado');
+  setTimeout(() => setCategoryMessage(''), 3000);
+    } catch (e) {
+      console.error('Error eliminando resultado', e);
+      setCategoryError('Error al eliminar resultado');
+      setTimeout(() => setCategoryError(''), 3000);
+    } finally {
+      setDeleteLoading(false);
+      setShowDeleteConfirm(false);
+      setDeleteTargetId(null);
+      setDeleteTargetLabel('');
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setShowDeleteConfirm(false);
+    setDeleteTargetId(null);
+    setDeleteTargetLabel('');
+  };
+
+  const handleImportFromIANSEO = async () => {
+    // Modal-scoped errors
+    setImportError('');
+    if (!ianseoUrl.trim()) {
+      setImportError('Por favor ingresa una URL de IANSEO');
+      return;
+    }
+    if (!activeCategory || !selectedEvent) {
+      setImportError('Selecciona un evento y categoría primero');
+      return;
+    }
+
+    setImportLoading(true);
+    try {
+      const resp = await api.get('/import/ianseo', { params: { url: ianseoUrl } });
+      // backend may return { position, name, total } or { position, name, score }
+      const raw: Array<any> = resp.data.data || [];
+      const results: Array<{ position: number; name: string; score: number }> = raw.map((r) => ({ position: r.position, name: r.name, score: Number(r.score ?? r.total ?? 0) }));
+
+      if (!results.length) {
+        setImportError('No se encontraron resultados en la URL. Verifica que sea una URL válida de IANSEO.');
+        return;
+      }
+
+      const phaseName = activeCategory.phases?.[0]?.name || 'QUALIFICATION';
+      let importedCount = 0;
+      let notFoundCount = 0;
+
+      const normalize = (s: string) => s.normalize?.('NFD')?.replace(/\p{Diacritic}/gu, '')?.replace(/\s+/g, ' ')?.trim().toLowerCase() || s.toLowerCase();
+
+  const tempInserted: Result[] = [];
+  for (const item of results) {
+        const nameNorm = normalize(item.name);
+
+        // Try to find in cached athleteOptions first
+        let matchedAthlete = athleteOptions.find(a => isNameMatch(a, item.name));
+
+        // If not found, query the API for the name (best-effort)
+        if (!matchedAthlete) {
+          try {
+            const q = item.name.split(',')[0] || item.name;
+            const r = await athletesApi.getAll({ q: q, limit: 5 });
+            const candidates = r.data.data || [];
+            matchedAthlete = candidates.find(a => {
+              const full = normalize(`${a.firstName} ${a.lastName}`);
+              const inv = normalize(`${a.lastName} ${a.firstName}`);
+              return full === nameNorm || inv === nameNorm || nameNorm.includes(normalize(a.lastName));
+            });
+            if (matchedAthlete) setAthleteOptions(prev => {
+              const merged = [...prev, matchedAthlete];
+              const byId = new Map<number, Athlete>();
+              merged.forEach(a => { if (a) byId.set(a.id, a); });
+              return Array.from(byId.values());
+            });
+          } catch (e) {
+            // ignore
+          }
+        }
+
+        if (matchedAthlete) {
+          try {
+            // optimistic insert so user sees it immediately, but mark as pending
+            const tempId = -(Date.now() + Math.floor(Math.random() * 1000));
+            const optimistic: any = {
+              id: tempId,
+              athlete: { id: matchedAthlete.id, firstName: matchedAthlete.firstName, lastName: matchedAthlete.lastName, club: matchedAthlete.club ? { name: matchedAthlete.club.name } : undefined },
+              score: item.score,
+              position: item.position,
+              phase: { id: modalPhaseId || (activeCategory.phases && activeCategory.phases[0]?.id) || 0, name: phaseName },
+              eventCategory: { distance: activeCategory.distance },
+              __pending: true,
+              nameMatched: true,
+              matchedName: `${matchedAthlete.firstName} ${matchedAthlete.lastName}`,
+              sourceName: item.name,
+            } as Result;
+            setCategoryResults(prev => {
+              const byId = new Map<number, Result>();
+              for (const r of [...prev, optimistic]) byId.set(r.id, r);
+              return Array.from(byId.values()).slice().sort((a, b) => (a.position || 0) - (b.position || 0));
+            });
+            addResultToCache(activeCategory.id, optimistic);
+            tempInserted.push(optimistic);
+            try {
+              const arr = pendingInsertedRef.current[activeCategory.id] || [];
+              pendingInsertedRef.current[activeCategory.id] = [...arr, optimistic];
+            } catch (e) {}
+            try { suspendMergeUntilRef.current = Date.now() + 2000; console.info('[AdminResults] suspendMergeUntil set (import-ianseo)', { until: suspendMergeUntilRef.current }); } catch (e) {}
+            // Do NOT call the server here; will persist on explicit save
+            importedCount++;
+          } catch (e) {
+            console.error('Error importing result for', matchedAthlete.firstName, matchedAthlete.lastName, e);
+          }
+        } else {
+          // Insert unmatched as pending so user can edit/match later
+          try {
+            const tempId = -(Date.now() + Math.floor(Math.random() * 1000));
+            const optimistic: any = {
+              id: tempId,
+              athlete: { id: 0, firstName: '', lastName: item.name },
+              score: item.score,
+              position: item.position,
+              phase: { id: modalPhaseId || (activeCategory.phases && activeCategory.phases[0]?.id) || 0, name: phaseName },
+              eventCategory: { distance: activeCategory.distance },
+              __pending: true,
+              nameMatched: false,
+              matchedName: '',
+              sourceName: item.name,
+            } as Result;
+            setCategoryResults(prev => [...prev, optimistic].slice().sort((a, b) => (a.position || 0) - (b.position || 0)));
+            addResultToCache(activeCategory.id, optimistic);
+            tempInserted.push(optimistic);
+            try { suspendMergeUntilRef.current = Date.now() + 3000; console.info('[AdminResults] suspendMergeUntil set (import-ianseo-unmatched)', { until: suspendMergeUntilRef.current }); } catch (e) {}
+            importedCount++;
+            notFoundCount++;
+          } catch (e) {
+            console.error('Atleta no encontrado e inserción fallida:', item.name, e);
+            notFoundCount++;
+          }
+        }
+      }
+      
+      // Ensure modal shows imported optimistic rows even if resultsByCategory hasn't flushed yet
+      try {
+        const existing = resultsByCategory[activeCategory.id] || [];
+        const byId = new Map<number, Result>();
+        for (const r of [...existing, ...tempInserted]) byId.set(r.id, r);
+        const merged = Array.from(byId.values()).slice().sort((a, b) => (a.position || 0) - (b.position || 0));
+        setCategoryResults(merged);
+      } catch (e) {
+        // ignore
+      }
+
+  try { console.info('[AdminResults] import-from-ianseo inserted (pending)', { activeCategoryId: activeCategory?.id, importedCount, notFoundCount, categoryResultsLength: categoryResults?.length, cachedLength: (activeCategory?.id && resultsByCategory[activeCategory.id]) ? resultsByCategory[activeCategory.id].length : 0 }); } catch (e) {}
+  setIanseoUrl('');
+  setShowImportModal(false);
+    // Do NOT persist now; wait for explicit save. Refresh modal view from local cache.
+    if (activeCategory) await openCategoryModal(activeCategory);
+    setTimeout(() => setCategoryMessage(''), 4000);
+    } catch (err: any) {
+      console.error('Error importing from IANSEO:', err);
+      const msg = err?.response?.data?.message || err?.message || 'Error al importar desde IANSEO. Intenta con una URL válida.';
+      setImportError(msg);
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  // Replace a temporary optimistic result id with the real id returned by the server
+  const replaceTempResultId = (tempId: number, real: Partial<Result> & { id: number }) => {
+    console.info('[AdminResults] replaceTempResultId', { tempId, realId: real.id });
+    setResultsByCategory(prev => {
+      const copy = { ...prev } as Record<number, Result[]>;
+      for (const k of Object.keys(copy)) {
+        copy[Number(k)] = copy[Number(k)].map(r => r.id === tempId ? ({ ...r, ...real } as Result) : r);
+      }
+      return copy;
+    });
+    setResults(prev => prev.map(r => r.id === tempId ? ({ ...r, ...real } as Result) : r));
+    // also update modal list if present
+    setCategoryResults(prev => {
+      const updated = prev.map(r => r.id === tempId ? ({ ...r, ...real } as Result) : r);
+      console.info('[AdminResults] replaceTempResultId updated categoryResults', { before: prev.length, after: updated.length });
+      return updated;
+    });
+  };
+
+  const getMedalEmoji = (phaseName: string, position: number) => {
+    if (phaseName === 'FINAL') {
+      if (position === 1) return '🥇';
+      if (position === 2) return '🥈';
+    }
+    if (phaseName === 'BRONZE_MATCH' && position === 1) return '🥉';
+    return '';
+  };
+
+  const categoryPriority = [
+    'RECURVE|SEVENTY_METERS',
+    'COMPOUND|FIFTY_METERS',
+    'RECURVE|THIRTY_METERS',
+    'BAREBOW|TEN_METERS',
+  ];
+
+  const distanceValue = (d?: string) => {
+    switch (d) {
+      case 'SEVENTY_METERS': return 70;
+      case 'FIFTY_METERS': return 50;
+      case 'THIRTY_METERS': return 30;
+      case 'TEN_METERS': return 10;
+      case 'FIVE_METERS': return 5;
+      case 'INDOOR': return 18;
+      default: return 999;
+    }
+  };
+
+  const categoryOrderIndex = (ec: EventCategory) => {
+    const key = `${ec.category.bowType}|${ec.distance || ''}`;
+    const idx = categoryPriority.indexOf(key);
+    if (idx !== -1) return idx;
+    // fallback ordering: by bowType then by numeric distance
+    const bowRank = ec.category.bowType === 'RECURVE' ? 0 : ec.category.bowType === 'COMPOUND' ? 1 : 2;
+    return categoryPriority.length + bowRank * 100 + distanceValue(ec.distance);
+  };
+
+  const sortedCategories = selectedEvent ? (selectedEvent.eventCategories || []).slice().sort((a: EventCategory, b: EventCategory) => categoryOrderIndex(a) - categoryOrderIndex(b)) : [];
+
+  return (
+    <>
+      <h1 className="mb-4">📝 Gestión de Resultados</h1>
+
+      {success && <Alert variant="success">{success}</Alert>}
+      {error && <Alert variant="danger">{error}</Alert>}
+
+      {/* Event/Category Selection */}
+      <Card className="mb-4">
+        <Card.Body>
+          <Row className="g-3 align-items-end">
+              <Col md={5}>
+                <Form.Label>Evento</Form.Label>
+                <Form.Select
+                  value={selectedEvent?.id || ''}
+                  onChange={(e) => {
+                    const event = events.find(ev => ev.id === Number(e.target.value));
+                    if (event) handleEventSelect(event);
+                  }}
+                >
+                  <option value="">Seleccionar evento...</option>
+                  {events.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.name} ({new Date(event.startDate).getFullYear()})
+                    </option>
+                  ))}
+                </Form.Select>
+              </Col>
+
+              <Col md={4}>
+                <Form.Label>Año</Form.Label>
+                <Form.Select value={selectedYear ?? ''} onChange={(e) => {
+                  const v = e.target.value;
+                  const year = v ? Number(v) : null;
+                  setSelectedYear(year);
+                  if (year) {
+                    const filtered = allFetchedEvents.filter(ev => new Date(ev.startDate).getFullYear() === year);
+                    setEvents(filtered.slice(0, 50));
+                    // if the currently selected event is not in the filtered list, clear it
+                    if (selectedEvent && !filtered.find(f => f.id === selectedEvent.id)) {
+                      setSelectedEvent(null);
+                    }
+                  } else {
+                    setEvents(allFetchedEvents.slice(0, 50));
+                  }
+                }}>
+                  <option value="">Todos los años</option>
+                  {years.map(y => <option key={y} value={y}>{y}</option>)}
+                </Form.Select>
+              </Col>
+
+              <Col md={3} className="d-flex justify-content-end">
+                {selectedEvent ? (
+                  <Button variant="primary" onClick={handleShowAddCategory}>➕ Agregar Categoría</Button>
+                ) : null}
+              </Col>
+          </Row>
+        </Card.Body>
+      </Card>
+
+      {/* Instead of showing all results at once, show a grid of categories like Ianseo and open a quick-results modal per category */}
+      {selectedEvent ? (
+        <>
+          <h4>Categorías</h4>
+          {loading ? (
+            <div className="text-center py-5">
+              <Spinner animation="border" className="mb-3" />
+              <p className="text-muted">Cargando categorías...</p>
+            </div>
+          ) : (
+            <Row>
+              {sortedCategories.map((ec) => (
+                <CategoryCard
+                  key={ec.id}
+                  ec={ec}
+                  categoryLoading={categoryLoading}
+                  activeCategory={activeCategory}
+                  onOpenModal={openCategoryModal}
+                />
+              ))}
+            </Row>
+          )}
+        </>
+      ) : (
+        <Card>
+          <Card.Body className="text-center py-5">
+            {loading ? (
+              <>
+                <Spinner animation="border" className="mb-3" />
+                <p className="text-muted">Cargando eventos...</p>
+              </>
+            ) : (
+              <p className="text-muted">Seleccione un evento para ver/cargar resultados</p>
+            )}
+          </Card.Body>
+        </Card>
+      )}
+
+      {/* Category Results Modal */}
+      <Modal show={showCategoryModal} onHide={closeCategoryModal} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Resultados: {activeCategory ? `${activeCategory.category.bowType} - ${genderLabel(activeCategory.category.gender)}` : ''}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {categoryLoading ? <div className="text-center py-5"><Spinner animation="border" /></div> : (
+             <>
+              {categoryMessage && <Alert variant="success">{categoryMessage}</Alert>}
+              {categoryError && <Alert variant="danger">{categoryError}</Alert>}
+              <Row className="mb-3 align-items-end">
+                <Col md={6}>
+                  <Form.Label>Fase</Form.Label>
+                  <Form.Select value={modalPhaseId || activeCategory?.phases?.[0]?.id || ''} onChange={(e) => handleCategoryPhaseChange(Number(e.target.value))}>
+                    {(activeCategory?.phases || []).map(p => (
+                      <option key={p.id} value={p.id}>{p.name.replace('_', ' ')}</option>
+                    ))}
+                  </Form.Select>
+                </Col>
+                <Col md={6} className="d-flex gap-2">
+                  <Button 
+                    variant="outline-info" 
+                    size="sm" 
+                    onClick={() => setShowImportModal(true)}
+                    className="flex-fill"
+                  >
+                    📥 Importar IANSEO
+                  </Button>
+                </Col>
+              </Row>
+
+              <Form onSubmit={handleQuickAdd} className="mb-3">
+                <Row className="g-2 align-items-end">
+                  <Col md={6}>
+                    <Form.Group>
+                      <Form.Label>Atleta</Form.Label>
+                      <Form.Control
+                        placeholder="Buscar o seleccionar atleta..."
+                        value={athleteSearch}
+                        onChange={(e) => setAthleteSearch(e.target.value)}
+                        list="athletes-list"
+                        autoComplete="off"
+                      />
+                      <datalist id="athletes-list">
+                        {athleteOptions.map(a => <option key={a.id} value={`${a.firstName} ${a.lastName}`} />)}
+                      </datalist>
+                      {athleteOptions.length > 0 && !athleteSearch && (
+                        <Form.Select 
+                          value={quickForm.athleteId} 
+                          onChange={(e) => {
+                            setQuickForm(prev => ({ ...prev, athleteId: e.target.value }));
+                            setAthleteSearch('');
+                          }} 
+                          className="mt-2"
+                          size="sm"
+                        >
+                          <option value="">-- Seleccionar atleta --</option>
+                          {athleteOptions.slice(0, 20).map(a => <option key={a.id} value={a.id}>{a.firstName} {a.lastName}</option>)}
+                        </Form.Select>
+                      )}
+                    </Form.Group>
+                  </Col>
+                  <Col md={2}>
+                    <Form.Group>
+                      <Form.Label>Score</Form.Label>
+                      <Form.Control 
+                        value={quickForm.score} 
+                        onChange={(e) => setQuickForm(prev => ({ ...prev, score: e.target.value }))}
+                        type="number"
+                        placeholder="Score"
+                      />
+                    </Form.Group>
+                  </Col>
+                  <Col md={2}>
+                    <Form.Group>
+                      <Form.Label>Posición</Form.Label>
+                      <Form.Control 
+                        value={quickForm.position} 
+                        onChange={(e) => setQuickForm(prev => ({ ...prev, position: e.target.value }))}
+                        type="number"
+                        placeholder="Pos"
+                      />
+                    </Form.Group>
+                  </Col>
+                  <Col md={2}>
+                    <Button type="submit" variant="primary" size="sm" className="w-100">
+                      ➕ Agregar
+                    </Button>
+                  </Col>
+                </Row>
+              </Form>
+
+              <Table responsive hover>
+                <thead>
+                  <tr>
+                    <th>Pos</th>
+                    <th>Atleta</th>
+                    <th>Club</th>
+                    <th>Distancia</th>
+                    <th>Score</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {categoryResults.map(r => (
+                    <tr key={r.id}>
+                      {categoryEditingId === r.id ? (
+                        <>
+                          <td><Form.Control value={categoryEditingForm.position} onChange={(e) => setCategoryEditingForm(prev => ({ ...prev, position: e.target.value }))} style={{ width: 80 }} /></td>
+                                      <td>
+                                        {r.athlete.firstName} {r.athlete.lastName}
+                                        {(r as any).sourceName && (r as any).matchedName && ( (r as any).sourceName !== (r as any).matchedName) ? (
+                                          <div className="text-muted small">Origen: {(r as any).sourceName}</div>
+                                        ) : null}
+                                        {(r as any).nameMatched ? <div className="text-muted small">Coinc: {(r as any).matchedName}</div> : null}
+                                        {(r as any).__pending ? <Badge bg="info" className="ms-2">Pendiente</Badge> : null}
+                                      </td>
+                          <td>{r.athlete.club?.name || <Badge bg="secondary">Independiente</Badge>}</td>
+                          <td>{formatDistance((r as any).eventCategory?.distance || activeCategory?.distance)}</td>
+                          <td><Form.Control value={categoryEditingForm.score} onChange={(e) => setCategoryEditingForm(prev => ({ ...prev, score: e.target.value }))} style={{ width: 120 }} /></td>
+                          <td>
+                            <Button size="sm" variant="success" className="me-2" onClick={async () => {
+                              try {
+                                // optimistic update locally
+                                setCategoryEditingId(null);
+                                updateResultInCache(r.id, { score: Number(categoryEditingForm.score), position: Number(categoryEditingForm.position) });
+                                // send update and schedule background refresh
+                                resultsApi.update(r.id, { score: Number(categoryEditingForm.score), position: Number(categoryEditingForm.position) })
+                                  .then(() => scheduleFetchResults())
+                                  .catch((e) => { console.error(e); scheduleFetchResults(); });
+                                if (activeCategory) await openCategoryModal(activeCategory);
+                              } catch (e) {
+                                console.error(e);
+                              }
+                            }}>Guardar</Button>
+                            <Button size="sm" variant="outline-secondary" onClick={() => setCategoryEditingId(null)}>Cancelar</Button>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td>{r.position}</td>
+                          <td>
+                            {r.athlete.firstName} {r.athlete.lastName}
+                            {(r as any).sourceName ? (
+                              <div className="text-muted small">Origen: {(r as any).sourceName}</div>
+                            ) : null}
+                            {(r as any).nameMatched ? <div className="text-muted small">Coinc: {(r as any).matchedName}</div> : null}
+                            {(r as any).__pending ? <Badge bg="info" className="ms-2">Pendiente</Badge> : null}
+                            {(!(r as any).nameMatched) && (r as any).sourceName ? <Badge bg="warning" className="ms-2">Sin coincidencia</Badge> : null}
+                          </td>
+                          <td>{r.athlete.club?.name || <Badge bg="secondary">Independiente</Badge>}</td>
+                          <td>{formatDistance((r as any).eventCategory?.distance || activeCategory?.distance)}</td>
+                          <td>{r.score}</td>
+                          <td>
+                            <Button size="sm" variant="outline-secondary" className="me-2" onClick={() => { setCategoryEditingId(r.id); setCategoryEditingForm({ score: String(r.score), position: String(r.position) }); }}>✏️</Button>
+                            <Button size="sm" variant="outline-danger" onClick={() => {
+                              // open confirmation modal
+                              handleRequestDelete(r.id, `${r.athlete.firstName} ${r.athlete.lastName}`);
+                            }} disabled={deleteLoading}>🗑️</Button>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                   ))}
+                </tbody>
+              </Table>
+            </>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => { closeCategoryModal(); }}>Cerrar</Button>
+          <Button variant="primary" onClick={handleSaveCategoryChanges} disabled={categoryLoading}>{categoryLoading ? <><Spinner animation="border" size="sm" className="me-2"/>Guardando...</> : '💾 Guardar cambios'}</Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Confirm delete modal (replaces window.confirm) */}
+      <Modal show={showDeleteConfirm} onHide={handleCancelDelete} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Confirmar eliminación</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          ¿Eliminar resultado de <strong>{deleteTargetLabel}</strong>? Esta acción no se puede deshacer.
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={handleCancelDelete} disabled={deleteLoading}>Cancelar</Button>
+          <Button variant="danger" onClick={handleConfirmDelete} disabled={deleteLoading}>
+            {deleteLoading ? <><Spinner animation="border" size="sm" className="me-2"/>Eliminando...</> : 'Eliminar'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Modal Add Result */}
+      <Modal show={showModal} onHide={handleCloseModal}>
+        <Modal.Header closeButton>
+          <Modal.Title>Agregar Resultado</Modal.Title>
+        </Modal.Header>
+        <Form onSubmit={handleSubmit}>
+          <Modal.Body>
+        {modalResultError && <Alert variant="danger">{modalResultError}</Alert>}
+        {error && <Alert variant="danger">{error}</Alert>}
+            
+            <Form.Group className="mb-3">
+              <Form.Label>Atleta *</Form.Label>
+              <Form.Select
+                value={formData.athleteId}
+                onChange={(e) => setFormData({ ...formData, athleteId: e.target.value })}
+                required
+              >
+                <option value="">Seleccionar atleta...</option>
+                {athletes
+                  .filter(a => a.active)
+                  .map((athlete) => (
+                    <option key={athlete.id} value={athlete.id}>
+                      {athlete.lastName}, {athlete.firstName} - {athlete.club?.name || 'Independiente'}
+                    </option>
+                  ))}
+              </Form.Select>
+            </Form.Group>
+
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Puntaje *</Form.Label>
+                  <Form.Control
+                    type="number"
+                    value={formData.score}
+                    onChange={(e) => setFormData({ ...formData, score: e.target.value })}
+                    min="0"
+                    required
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Posición *</Form.Label>
+                  <Form.Control
+                    type="number"
+                    value={formData.position}
+                    onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+                    min="1"
+                    required
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={handleCloseModal}>Cancelar</Button>
+            <Button type="submit" variant="primary">Guardar Resultado</Button>
+            {modalResultMessage && <Badge bg="success" className="ms-2">{modalResultMessage}</Badge>}
+          </Modal.Footer>
+        </Form>
+      </Modal>
+
+      {/* Add Category Modal */}
+      <Modal show={showAddCategoryModal} onHide={handleCloseAddCategory}>
+        <Modal.Header closeButton>
+          <Modal.Title>Agregar Categoría al Evento</Modal.Title>
+        </Modal.Header>
+        <Form onSubmit={handleAddCategory}>
+          <Modal.Body>
+            {error && <Alert variant="danger">{error}</Alert>}
+            <Form.Group className="mb-3">
+              <Form.Label>Categoría *</Form.Label>
+              <Form.Select value={addCategoryForm.categoryId} onChange={(e) => setAddCategoryForm(prev => ({ ...prev, categoryId: e.target.value }))} required>
+                {allCategories.map(c => <option key={c.id} value={c.id}>{c.bowType} - {c.gender} - {c.division}</option>)}
+              </Form.Select>
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Modalidad *</Form.Label>
+              <Form.Select value={addCategoryForm.modalityId} onChange={(e) => setAddCategoryForm(prev => ({ ...prev, modalityId: e.target.value }))} required>
+                {allModalities.map(m => <option key={m.id} value={m.id}>{m.name.replace(/_/g, ' ')}</option>)}
+              </Form.Select>
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Distancia</Form.Label>
+              <Form.Select value={addCategoryForm.distance} onChange={(e) => setAddCategoryForm(prev => ({ ...prev, distance: e.target.value }))}>
+                <option value="">-- No especificada --</option>
+                <option value="SEVENTY_METERS">70 m</option>
+                <option value="FIFTY_METERS">50 m</option>
+                <option value="THIRTY_METERS">30 m</option>
+                <option value="INDOOR">Indoor (18 m)</option>
+                <option value="FIVE_METERS">5 m</option>
+                <option value="TEN_METERS">10 m</option>
+              </Form.Select>
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Fases *</Form.Label>
+              <Form.Text className="d-block text-muted small mb-2">
+                Selecciona las fases que tendrá esta categoría en el evento
+              </Form.Text>
+              <Row>
+                {[
+                  { key: 'QUALIFICATION', label: 'Clasificación (Ranking)' },
+                  { key: 'ELIMINATION', label: 'Eliminatorias' },
+                  { key: 'SEMI_FINAL', label: 'Semifinal' },
+                  { key: 'BRONZE_MATCH', label: 'Match Bronce' },
+                  { key: 'FINAL', label: 'Final' }
+                ].map((ph) => (
+                  <Col xs={12} key={ph.key} className="mb-2">
+                    <Form.Check
+                      type="checkbox"
+                      id={`phase-${ph.key}`}
+                      label={ph.label}
+                      checked={addCategoryForm.phases.includes(ph.key)}
+                      onChange={() => setAddCategoryForm(prev => ({ ...prev, phases: prev.phases.includes(ph.key) ? prev.phases.filter(p => p !== ph.key) : [...prev.phases, ph.key] }))}
+                    />
+                  </Col>
+                ))}
+              </Row>
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={handleCloseAddCategory}>Cancelar</Button>
+            <Button type="submit" variant="primary">Agregar Categoría</Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
+
+      {/* Import from IANSEO Modal */}
+      <Modal show={showImportModal} onHide={() => setShowImportModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>📥 Importar Resultados desde IANSEO</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form.Group>
+            <Form.Label>URL de IANSEO *</Form.Label>
+            <Form.Control
+              type="url"
+              placeholder="Ej: https://www.ianseo.net/TourData/2025/25997/IQRM.php"
+              value={ianseoUrl}
+              onChange={(e) => setIanseoUrl(e.target.value)}
+            />
+            {importError && <Alert variant="danger" className="mt-2">{importError}</Alert>}
+            <Form.Text className="text-muted d-block mt-2">
+              Copia la URL de la tabla de resultados de IANSEO. Se extraerán Posición, Nombre y Total.
+            </Form.Text>
+          </Form.Group>
+
+          <Alert variant="info" className="mt-3 small">
+            <strong>ℹ️ Nota:</strong> Los nombres de atletas se buscarán automáticamente en tu base de datos.
+            Si un atleta no se encuentra, puedes agregarlo manualmente después.
+          </Alert>
+
+          {/* Preview table (if preview available) */}
+          {importPreviewing && importPreview.length > 0 && (
+            <div className="mt-3">
+              <h6>Vista previa ({importPreview.length} filas)</h6>
+              <Table size="sm" striped bordered>
+                <thead>
+                  <tr>
+                    <th>Pos</th>
+                    <th>Nombre</th>
+                    <th>Total</th>
+                    <th>Match</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {importPreview.map((r, idx) => {
+                        const normalized = `${r.name}`;
+                        const matched = athleteOptions.find(a => isNameMatch(a, normalized));
+                    return (
+                      <tr key={idx}>
+                        <td>{r.position}</td>
+                        <td>{r.name}</td>
+                        <td>{r.total}</td>
+                            <td>{matched ? `${matched.firstName} ${matched.lastName}` : <Badge bg="warning">No encontrado</Badge>}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </Table>
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => { setShowImportModal(false); setImportPreview([]); setImportPreviewing(false); setImportError(''); }}>Cerrar</Button>
+          {!importPreviewing ? (
+            <Button variant="outline-primary" onClick={handlePreviewFromIANSEO} disabled={importLoading || !ianseoUrl.trim()}>
+              {importLoading ? <><Spinner animation="border" size="sm" className="me-2" />Obteniendo...</> : '🔎 Vista previa'}
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline-secondary" onClick={() => { setImportPreview([]); setImportPreviewing(false); setImportError(''); }} disabled={importLoading}>Volver</Button>
+              <Button variant="primary" onClick={handleConfirmImportFromPreview} disabled={importLoading}>
+                {importLoading ? <><Spinner animation="border" size="sm" className="me-2" />Importando...</> : '✅ Confirmar import'}
+              </Button>
+            </>
+          )}
+        </Modal.Footer>
+      </Modal>
+     </>
+   );
+ }

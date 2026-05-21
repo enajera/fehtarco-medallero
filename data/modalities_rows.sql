@@ -1,0 +1,1 @@
+INSERT INTO "public"."modalities" ("id", "name") VALUES ('1', 'INDIVIDUAL'), ('2', 'TEAM'), ('3', 'MIXED');

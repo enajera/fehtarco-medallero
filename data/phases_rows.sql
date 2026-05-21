@@ -1,0 +1,1 @@
+INSERT INTO "public"."phases" ("id", "name", "orderIndex") VALUES ('1', 'QUALIFICATION', '1'), ('2', 'FINAL', '2'), ('3', 'BRONZE_MATCH', '3');
