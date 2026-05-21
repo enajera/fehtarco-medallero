@@ -41,3 +41,5 @@ coverage/
 
 # Claude Code IDE files
 .claude/
+docs/~$*
+*.bak
