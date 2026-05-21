@@ -646,7 +646,7 @@ export default function AdminResults() {
         const savedId = saved?.id;
         if (!savedId) return null;
         return { ...p, id: savedId, __pending: false };
-      }).filter((r): r is Result => r !== null);
+      }).filter(r => r !== null) as Result[];
 
       const finalResults = baseResults.map(r => {
         const updated = pendingToUpdate.find(p => p.id === r.id);
