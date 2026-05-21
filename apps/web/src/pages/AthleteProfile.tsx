@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { profileApi, athletesApi, AthleteProfile, Athlete } from '../api/client';
+import { profileApi, athletesApi, AthleteProfile, Athlete, mediaUrl } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import Loading from '../components/Loading';
 import AthleteAuthModal from '../components/AthleteAuthModal';
@@ -37,7 +37,7 @@ export default function AthleteProfilePage() {
         const athleteData = athleteResponse.data.data;
         setAthlete(athleteData);
         if (athleteData.hasPhoto) {
-          setPhotoUrl(`/api/athletes/${id}/photo`);
+          setPhotoUrl(mediaUrl(`/api/athletes/${id}/photo`));
         } else {
           setPhotoUrl(profileResponse.data.data.photoUrl || null);
         }

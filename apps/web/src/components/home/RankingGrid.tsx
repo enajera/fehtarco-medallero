@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import DecorBlur from '../DecorBlur';
+import { mediaUrl } from '@/api/client';
 import type { AthleteRankEntry } from '@/api/client';
 
 const RANK_COLORS = {
@@ -73,7 +74,7 @@ function AthleteRow({ athlete, rank }: { athlete: AthleteRankEntry; rank: 1 | 2 
       >
         {athlete.hasPhoto ? (
           <img
-            src={`/api/athletes/${athlete.athleteId}/photo`}
+            src={mediaUrl(`/api/athletes/${athlete.athleteId}/photo`)}
             alt={name}
             className="w-full h-full object-cover"
             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}

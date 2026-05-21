@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { athletesApi, Athlete } from '../api/client';
+import { athletesApi, Athlete, mediaUrl } from '../api/client';
 import Loading from '../components/Loading';
 
 const BOW_LABELS: Record<string, string> = {
@@ -15,7 +15,7 @@ function AthAvatar({ athlete }: { athlete: Athlete }) {
     <div className="ath-avatar">
       {athlete.hasPhoto ? (
         <img
-          src={`/api/athletes/${athlete.id}/photo`}
+          src={mediaUrl(`/api/athletes/${athlete.id}/photo`)}
           alt={`${athlete.firstName} ${athlete.lastName}`}
           onError={(e) => {
             (e.target as HTMLImageElement).style.display = 'none';

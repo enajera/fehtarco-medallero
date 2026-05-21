@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { clubsApi, Club } from '../api/client';
+import { clubsApi, Club, mediaUrl } from '../api/client';
 import Loading from '../components/Loading';
 
 function ClubAvatar({ club }: { club: Club }) {
@@ -9,7 +9,7 @@ function ClubAvatar({ club }: { club: Club }) {
     <div className="club-avatar club-avatar--2xl">
       {club.hasLogo ? (
         <img
-          src={`/api/clubs/${club.id}/logo`}
+          src={mediaUrl(`/api/clubs/${club.id}/logo`)}
           alt={club.name}
           onError={(e) => {
             (e.target as HTMLImageElement).style.display = 'none';

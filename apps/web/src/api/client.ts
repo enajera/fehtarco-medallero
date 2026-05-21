@@ -6,6 +6,13 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
+// Helper para construir URLs de imágenes (logos, fotos) usando el mismo base que el API
+export function mediaUrl(path: string): string {
+  // path viene como /api/athletes/1/photo → convertir a base + /athletes/1/photo
+  const cleanPath = path.startsWith('/api/') ? path.slice(4) : path;
+  return `${API_BASE_URL.replace(/\/$/, '')}${cleanPath}`;
+}
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { profileApi, ClubProfile } from '../api/client';
+import { profileApi, ClubProfile, mediaUrl } from '../api/client';
 import Loading from '../components/Loading';
 
 const MEDAL_COLORS = {
@@ -46,7 +46,7 @@ export default function ClubProfilePage() {
           <div className="club-avatar club-avatar--xl">
             {profile.hasLogo ? (
               <img
-                src={`/api/clubs/${profile.id}/logo`}
+                src={mediaUrl(`/api/clubs/${profile.id}/logo`)}
                 alt={profile.name}
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = 'none';
@@ -121,7 +121,7 @@ export default function ClubProfilePage() {
                           <div className="ath-avatar" style={{ width: 32, height: 32, fontSize: 11 }}>
                             {athlete.hasPhoto ? (
                               <img
-                                src={`/api/athletes/${athlete.id}/photo`}
+                                src={mediaUrl(`/api/athletes/${athlete.id}/photo`)}
                                 alt=""
                                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                               />

@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { initials } from '@/lib/utils';
+import { mediaUrl } from '@/api/client';
 import type { ClubMedalCount } from '@/api/client';
 
 // Medal config — tamaños base desktop + mobile
@@ -138,7 +139,7 @@ function PodiumItem({ club, rank, mobile }: { club: ClubMedalCount; rank: MedalR
           >
             {club.hasLogo ? (
               <img
-                src={`/api/clubs/${club.clubId}/logo`}
+                src={mediaUrl(`/api/clubs/${club.clubId}/logo`)}
                 alt={club.clubName}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
