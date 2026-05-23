@@ -439,6 +439,30 @@ export const medalsApi = {
     api.get<ApiResponse<AthleteRankEntry[]>>('/medals/athletes', { params }),
 };
 
+// Records
+export interface RecordEntry {
+  bowType: string;
+  gender: string;
+  division: string;
+  modality: string;
+  distance: string | null;
+  phase: string;
+  score: number;
+  athlete: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    hasPhoto: boolean;
+    club: { id: number; name: string } | null;
+  };
+  event: { id: number; name: string; date: string };
+}
+
+export const recordsApi = {
+  getAll: (params?: { bowType?: string; gender?: string; phase?: string }) =>
+    api.get<ApiResponse<RecordEntry[]>>('/records', { params }),
+};
+
 // Profiles
 export const profileApi = {
   getAthlete: (id: number) => api.get<ApiResponse<AthleteProfile>>(`/profile/athlete/${id}`),

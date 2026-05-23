@@ -13,6 +13,7 @@ import bulkRoutes from './bulk.routes';
 import diagnosticRoutes from './diagnostic.routes';
 import phaseRoutes from './phase.routes';
 import importRoutes from './import.routes';
+import recordsRoutes from './records.routes';
 
 const router = Router();
 
@@ -31,6 +32,7 @@ router.use('/bulk', bulkRoutes);
 router.use('/diagnostic', diagnosticRoutes);
 router.use('/phases', phaseRoutes);
 router.use('/import', importRoutes);
+router.use('/records', recordsRoutes);
 
 // Results by event (nested route)
 router.use('/events/:eventId/results', getResultsByEventRouter);
