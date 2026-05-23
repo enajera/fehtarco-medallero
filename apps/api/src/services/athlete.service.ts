@@ -201,6 +201,27 @@ export class AthleteService {
   }
 
   /**
+   * Self-update: athlete updates their own limited fields
+   */
+  async selfUpdate(id: number, input: { bowType?: string; drawWeightLbs?: number | null; drawLengthIn?: number | null; email?: string | null; phone?: string | null }) {
+    return prisma.athlete.update({
+      where: { id },
+      data: {
+        ...(input.bowType !== undefined && { bowType: input.bowType as any }),
+        ...(input.drawWeightLbs !== undefined && { drawWeightLbs: input.drawWeightLbs }),
+        ...(input.drawLengthIn !== undefined && { drawLengthIn: input.drawLengthIn }),
+        ...(input.email !== undefined && { email: input.email }),
+        ...(input.phone !== undefined && { phone: input.phone }),
+      },
+      select: {
+        id: true, firstName: true, lastName: true,
+        bowType: true, drawWeightLbs: true, drawLengthIn: true,
+        email: true, phone: true, clubId: true, userId: true,
+      },
+    });
+  }
+
+  /**
    * Soft delete an athlete (set active = false)
    */
   async delete(id: number) {

@@ -156,6 +156,24 @@ export interface AthleteRankEntry {
   points: number;
 }
 
+export interface AthleteHistoryEntry {
+  eventId: number;
+  eventName: string;
+  eventDate: string;
+  categoryName: string;
+  phase: string;
+  position: number;
+  score: number;
+  medal: 'GOLD' | 'SILVER' | 'BRONZE' | null;
+}
+
+export interface ClubHistoryEntry {
+  clubId: number | null;
+  clubName?: string;
+  from?: string | null;
+  to?: string | null;
+}
+
 export interface AthleteProfile {
   id: number;
   firstName: string;
@@ -164,23 +182,18 @@ export interface AthleteProfile {
   gender: string | null;
   bowType: string;
   photoUrl: string | null;
+  hasPhoto?: boolean;
   club: { id: number; name: string; logoUrl: string | null } | null;
+  clubHistory: ClubHistoryEntry[];
+  drawWeightLbs: number | null;
+  drawLengthIn: number | null;
   stats: {
     totalEvents: number;
     totalGold: number;
     totalSilver: number;
     totalBronze: number;
   };
-  history: Array<{
-    eventId: number;
-    eventName: string;
-    eventDate: string;
-    categoryName: string;
-    phase: string;
-    position: number;
-    score: number;
-    medal: 'GOLD' | 'SILVER' | 'BRONZE' | null;
-  }>;
+  history: AthleteHistoryEntry[];
 }
 
 export interface ClubProfile {
@@ -235,8 +248,8 @@ export interface User {
 export const authApi = {
   login: (email: string, password: string) =>
     api.post<ApiResponse<{ token: string; user: User }>>('/auth/login', { email, password }),
-  registerAthlete: (athleteId: number, password: string) =>
-    api.post<ApiResponse<{ token: string; user: User }>>('/auth/register-athlete', { athleteId, password }),
+  registerAthlete: (athleteId: number, password: string, email?: string) =>
+    api.post<ApiResponse<{ token: string; user: User }>>('/auth/register-athlete', { athleteId, password, ...(email ? { email } : {}) }),
   me: () => api.get<ApiResponse<User>>('/auth/me'),
 };
 
@@ -276,6 +289,8 @@ export const athletesApi = {
   },
   deletePhoto: (athleteId: number) =>
     api.delete<ApiResponse<{ athlete: Athlete }>>(`/athletes/${athleteId}/photo`),
+  selfUpdate: (athleteId: number, data: { bowType?: string; drawWeightLbs?: number | null; drawLengthIn?: number | null; email?: string | null; phone?: string | null }) =>
+    api.put<ApiResponse<Athlete>>(`/athletes/${athleteId}/self`, data),
 };
 
 // Categories

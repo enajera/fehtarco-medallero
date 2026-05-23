@@ -5,6 +5,9 @@ import { useAuth } from '../context/AuthContext';
 import Loading from '../components/Loading';
 import AthleteAuthModal from '../components/AthleteAuthModal';
 import PhotoUpload from '../components/PhotoUpload';
+import ScoreChart from '../components/athlete/ScoreChart';
+import ClubTimeline from '../components/athlete/ClubTimeline';
+import AthletePrivatePanel from '../components/athlete/AthletePrivatePanel';
 
 const BOW_LABELS: Record<string, string> = {
   RECURVE: 'Recurvo',
@@ -18,6 +21,12 @@ const MEDAL_COLORS = {
   BRONZE: { bg: 'rgba(196,113,58,0.15)',  color: 'var(--bronze)', label: 'Bronce' },
 };
 
+const PHASE_LABELS: Record<string, string> = {
+  QUALIFICATION: 'Clasificación',
+  FINAL: 'Final',
+  BRONZE_MATCH: 'Bronce',
+};
+
 export default function AthleteProfilePage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -26,28 +35,32 @@ export default function AthleteProfilePage() {
   const [loading, setLoading] = useState(true);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 
-  const isOwnProfile = user && athlete && athlete.userId === user.id;
+  const isOwnProfile = !!(user && athlete && athlete.userId === user.id);
+
+  const fetchAll = async () => {
+    try {
+      const [profileRes, athleteRes] = await Promise.all([
+        profileApi.getAthlete(Number(id)),
+        athletesApi.getById(Number(id)),
+      ]);
+      const profileData = profileRes.data.data;
+      const athleteData = athleteRes.data.data;
+      setProfile(profileData);
+      setAthlete(athleteData);
+      if (athleteData.hasPhoto) {
+        setPhotoUrl(mediaUrl(`/api/athletes/${id}/photo`));
+      } else {
+        setPhotoUrl(profileData.photoUrl || null);
+      }
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const profileResponse = await profileApi.getAthlete(Number(id));
-        setProfile(profileResponse.data.data);
-        const athleteResponse = await athletesApi.getById(Number(id));
-        const athleteData = athleteResponse.data.data;
-        setAthlete(athleteData);
-        if (athleteData.hasPhoto) {
-          setPhotoUrl(mediaUrl(`/api/athletes/${id}/photo`));
-        } else {
-          setPhotoUrl(profileResponse.data.data.photoUrl || null);
-        }
-      } catch (error) {
-        console.error('Error fetching profile:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    if (id) fetchProfile();
+    if (id) fetchAll();
   }, [id]);
 
   if (loading) return <Loading />;
@@ -59,10 +72,12 @@ export default function AthleteProfilePage() {
 
   const initials = `${profile.firstName[0]}${profile.lastName[0]}`.toUpperCase();
   const bowLabel = BOW_LABELS[profile.bowType] || profile.bowType;
+  const hasClubHistory = profile.clubHistory && profile.clubHistory.length > 1;
+  const hasChart = profile.history.filter(h => h.score > 0).length >= 2;
 
   return (
     <>
-      {/* Profile header band */}
+      {/* ── Profile header ── */}
       <div className="profile-band">
         <div style={{ display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap' }}>
           {/* Photo */}
@@ -74,25 +89,20 @@ export default function AthleteProfilePage() {
             )}
           </div>
 
-          {/* Name + info */}
+          {/* Name + tags */}
           <div style={{ flex: 1, minWidth: 200 }}>
-            <h1
-              style={{
-                fontFamily: 'Manrope, sans-serif',
-                fontSize: 'clamp(22px, 3vw, 32px)',
-                fontWeight: 800,
-                color: 'var(--text)',
-                margin: '0 0 6px',
-              }}
-            >
+            <h1 style={{
+              fontFamily: 'Manrope, sans-serif',
+              fontSize: 'clamp(22px, 3vw, 32px)',
+              fontWeight: 800,
+              color: 'var(--text)',
+              margin: '0 0 8px',
+            }}>
               {profile.firstName} {profile.lastName}
             </h1>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               {profile.bowType && (
-                <span className={`chip chip-${
-                  profile.bowType === 'RECURVE' ? 'accent' :
-                  profile.bowType === 'COMPOUND' ? 'gold' : 'muted'
-                }`}>
+                <span className={`chip chip-${profile.bowType === 'RECURVE' ? 'accent' : profile.bowType === 'COMPOUND' ? 'gold' : 'muted'}`}>
                   {bowLabel}
                 </span>
               )}
@@ -102,16 +112,11 @@ export default function AthleteProfilePage() {
                 </span>
               )}
               {profile.club ? (
-                <Link
-                  to={`/clubes/${profile.club.id}`}
-                  style={{ textDecoration: 'none', color: 'var(--subtle)', fontSize: 13 }}
-                >
+                <Link to={`/clubes/${profile.club.id}`} style={{ textDecoration: 'none', color: 'var(--subtle)', fontSize: 13 }}>
                   {profile.club.name}
                 </Link>
               ) : (
-                <span style={{ fontSize: 13, color: 'var(--subtle)', opacity: 0.7 }}>
-                  Atleta Independiente
-                </span>
+                <span style={{ fontSize: 13, color: 'var(--subtle)', opacity: 0.7 }}>Atleta Independiente</span>
               )}
             </div>
           </div>
@@ -119,10 +124,10 @@ export default function AthleteProfilePage() {
           {/* Stats pills */}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             {[
-              { value: profile.stats.totalGold,   label: 'Oro',     color: 'var(--gold)'  },
-              { value: profile.stats.totalSilver,  label: 'Plata',   color: 'var(--silver)'},
-              { value: profile.stats.totalBronze,  label: 'Bronce',  color: 'var(--bronze)'},
-              { value: profile.stats.totalEvents,  label: 'Eventos', color: 'var(--text)'  },
+              { value: profile.stats.totalGold,   label: 'Oro',     color: 'var(--gold)'   },
+              { value: profile.stats.totalSilver,  label: 'Plata',   color: 'var(--silver)' },
+              { value: profile.stats.totalBronze,  label: 'Bronce',  color: 'var(--bronze)' },
+              { value: profile.stats.totalEvents,  label: 'Eventos', color: 'var(--text)'   },
             ].map(({ value, label, color }) => (
               <div key={label} className="stat-pill">
                 <div className="stat-pill-value" style={{ color }}>{value}</div>
@@ -133,21 +138,47 @@ export default function AthleteProfilePage() {
         </div>
       </div>
 
-      {/* Auth / Photo upload */}
+      {/* ── Auth / Photo upload ── */}
       {isOwnProfile ? (
         <PhotoUpload
           athleteId={athlete!.id}
           currentPhotoUrl={photoUrl || undefined}
           onPhotoUpdated={(newPhotoUrl) => setPhotoUrl(newPhotoUrl)}
         />
-      ) : athlete && !isOwnProfile ? (
+      ) : !user && athlete ? (
         <AthleteAuthModal
           athlete={athlete}
-          onSuccess={() => { window.location.reload(); }}
+          onSuccess={() => window.location.reload()}
         />
       ) : null}
 
-      {/* Competition history */}
+      {/* ── Panel privado (solo dueño del perfil) ── */}
+      {isOwnProfile && athlete && (
+        <div className="dcard">
+          <AthletePrivatePanel
+            athlete={athlete}
+            onUpdated={(updated) => setAthlete(updated)}
+          />
+        </div>
+      )}
+
+      {/* ── Progresión de scores ── */}
+      {hasChart && (
+        <div className="dcard">
+          <div className="dcard-header">Progresión de Puntajes</div>
+          <ScoreChart history={profile.history} />
+        </div>
+      )}
+
+      {/* ── Historial de clubes ── */}
+      {hasClubHistory && (
+        <div className="dcard">
+          <div className="dcard-header">Historial de Clubes</div>
+          <ClubTimeline clubHistory={profile.clubHistory} currentClub={profile.club} />
+        </div>
+      )}
+
+      {/* ── Historial de competencias ── */}
       <div className="dcard">
         <div className="dcard-header">Historial de Competencias</div>
         {profile.history.length > 0 ? (
@@ -159,8 +190,8 @@ export default function AthleteProfilePage() {
                   <th>Evento</th>
                   <th>Categoría</th>
                   <th>Fase</th>
-                  <th className="tc" style={{ width: 70 }}>Posición</th>
-                  <th className="tc" style={{ width: 80 }}>Puntaje</th>
+                  <th className="tc" style={{ width: 70 }}>Pos.</th>
+                  <th className="tc" style={{ width: 80 }}>Score</th>
                   <th className="tc" style={{ width: 80 }}>Medalla</th>
                 </tr>
               </thead>
@@ -175,60 +206,31 @@ export default function AthleteProfilePage() {
                         })}
                       </td>
                       <td>
-                        <Link
-                          to={`/eventos/${result.eventId}`}
-                          style={{
-                            textDecoration: 'none',
-                            color: 'var(--text)',
-                            fontWeight: 600,
-                            fontSize: 13,
-                          }}
-                        >
+                        <Link to={`/eventos/${result.eventId}`} style={{ textDecoration: 'none', color: 'var(--text)', fontWeight: 600, fontSize: 13 }}>
                           {result.eventName}
                         </Link>
                       </td>
                       <td>
-                        <span style={{ fontSize: 12, color: 'var(--subtle)' }}>
-                          {result.categoryName}
-                        </span>
+                        <span style={{ fontSize: 12, color: 'var(--subtle)' }}>{result.categoryName}</span>
                       </td>
                       <td>
-                        <span
-                          className={`chip ${result.phase === 'FINAL' ? 'chip-accent' : 'chip-muted'}`}
-                          style={{ fontSize: 11 }}
-                        >
-                          {result.phase.replace('_', ' ')}
+                        <span className={`chip ${result.phase === 'FINAL' ? 'chip-accent' : result.phase === 'BRONZE_MATCH' ? 'chip-gold' : 'chip-muted'}`} style={{ fontSize: 11 }}>
+                          {PHASE_LABELS[result.phase] || result.phase}
                         </span>
                       </td>
                       <td className="tc">
-                        <span
-                          style={{
-                            fontFamily: "'Space Mono', monospace",
-                            fontWeight: 800,
-                            fontSize: 14,
-                            color: 'var(--text)',
-                          }}
-                        >
+                        <span style={{ fontFamily: 'Space Mono, monospace', fontWeight: 800, fontSize: 14, color: 'var(--text)' }}>
                           {result.position}
                         </span>
                       </td>
                       <td className="tc">
-                        <span
-                          style={{
-                            fontFamily: "'Space Mono', monospace",
-                            fontSize: 13,
-                            color: 'var(--subtle)',
-                          }}
-                        >
+                        <span style={{ fontFamily: 'Space Mono, monospace', fontSize: 13, color: 'var(--subtle)' }}>
                           {result.score}
                         </span>
                       </td>
                       <td className="tc">
                         {mc ? (
-                          <span
-                            className="chip"
-                            style={{ background: mc.bg, color: mc.color, fontSize: 11 }}
-                          >
+                          <span className="chip" style={{ background: mc.bg, color: mc.color, fontSize: 11 }}>
                             {mc.label}
                           </span>
                         ) : (

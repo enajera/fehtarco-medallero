@@ -90,17 +90,19 @@ export class AuthService {
       throw new NotFoundError('Athlete not found');
     }
 
-    if (!athlete.email) {
-      throw new UnauthorizedError('Athlete email not set. Contact administrator to set your email.');
-    }
-
     if (athlete.userId) {
       throw new ConflictError('This athlete already has an account registered');
     }
 
+    // Determinar email: usar el del atleta si existe, o el enviado en el formulario
+    const emailToUse = athlete.email || input.email;
+    if (!emailToUse) {
+      throw new UnauthorizedError('Email required. Provide your email to register.');
+    }
+
     // Check if user already exists with this email (just in case)
     const existingUser = await prisma.user.findUnique({
-      where: { email: athlete.email },
+      where: { email: emailToUse },
     });
 
     if (existingUser) {
@@ -113,17 +115,20 @@ export class AuthService {
     // Create user and link to athlete (transaction)
     const user = await prisma.user.create({
       data: {
-        email: athlete.email,
+        email: emailToUse,
         passwordHash,
         role: 'PUBLIC',
         active: true,
       },
     });
 
-    // Link user to athlete
+    // Link user to athlete — also save email if it wasn't set
     await prisma.athlete.update({
       where: { id: athlete.id },
-      data: { userId: user.id },
+      data: {
+        userId: user.id,
+        ...(athlete.email ? {} : { email: emailToUse }),
+      },
     });
     const payload: JwtPayload = {
       userId: user.id,

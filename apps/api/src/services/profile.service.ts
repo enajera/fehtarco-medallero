@@ -28,6 +28,9 @@ interface AthleteProfile {
   photoUrl: string | null;
   hasPhoto?: boolean;
   club: { id: number; name: string; logoUrl: string | null } | null;
+  clubHistory: Array<{ clubId: number | null; clubName?: string; from?: string | null; to?: string | null }>;
+  drawWeightLbs: number | null;
+  drawLengthIn: number | null;
   stats: {
     totalEvents: number;
     totalGold: number;
@@ -161,6 +164,9 @@ export class ProfileService {
       photoUrl: athlete.photoUrl,
       hasPhoto: athlete.photoMimeType !== null && athlete.photoMimeType !== undefined,
       club: athlete.club,
+      clubHistory: (athlete.clubHistory as any) || [],
+      drawWeightLbs: athlete.drawWeightLbs,
+      drawLengthIn: athlete.drawLengthIn,
       stats: {
         totalEvents: eventIds.size,
         totalGold,

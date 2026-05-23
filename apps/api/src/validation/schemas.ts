@@ -26,10 +26,21 @@ export type LoginInput = z.infer<typeof loginSchema>;
 
 export const registerAthleteSchema = z.object({
   athleteId: z.number().int().positive('Invalid athlete ID'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  email: z.string().email('Invalid email format').optional(), // requerido solo si el atleta no tiene email en BD
 });
 
 export type RegisterAthleteInput = z.infer<typeof registerAthleteSchema>;
+
+export const selfUpdateAthleteSchema = z.object({
+  bowType: z.enum(['RECURVE', 'COMPOUND', 'BAREBOW']).optional(),
+  drawWeightLbs: z.number().positive().optional().nullable(),
+  drawLengthIn: z.number().positive().optional().nullable(),
+  email: z.string().email().optional().nullable(),
+  phone: z.string().max(30).optional().nullable(),
+});
+
+export type SelfUpdateAthleteInput = z.infer<typeof selfUpdateAthleteSchema>;
 
 // ============================================
 // CLUB SCHEMAS

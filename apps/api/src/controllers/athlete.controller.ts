@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { athleteService } from '../services';
-import { CreateAthleteInput, UpdateAthleteInput } from '../validation/schemas';
+import { CreateAthleteInput, UpdateAthleteInput, SelfUpdateAthleteInput } from '../validation/schemas';
 import { sendSuccess, sendCreated, sendPaginated } from '../utils/response';
 import { asyncHandler } from '../utils/errors';
 import { AuthRequest } from '../middleware/auth';
@@ -59,6 +59,21 @@ export const update = asyncHandler(async (req: Request, res: Response) => {
   const input: UpdateAthleteInput = req.body;
   const athlete = await athleteService.update(id, input);
   sendSuccess(res, athlete);
+});
+
+/**
+ * PUT /api/athletes/:id/self
+ * Athlete updates their own limited fields (bowType, drawWeight, drawLength, email, phone)
+ */
+export const selfUpdate = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const id = parseInt(req.params.id);
+  const athlete = await athleteService.findById(id);
+  if (!athlete || athlete.userId !== req.user!.userId) {
+    throw new ForbiddenError('You can only update your own profile');
+  }
+  const input: SelfUpdateAthleteInput = req.body;
+  const updated = await athleteService.selfUpdate(id, input);
+  sendSuccess(res, updated);
 });
 
 /**
