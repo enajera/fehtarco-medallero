@@ -27,6 +27,15 @@ const PHASE_LABELS: Record<string, string> = {
   BRONZE_MATCH: 'Bronce',
 };
 
+const DISTANCE_LABEL: Record<string, string> = {
+  FIVE_METERS:    '5 m',
+  TEN_METERS:     '10 m',
+  THIRTY_METERS:  '30 m',
+  FIFTY_METERS:   '50 m',
+  SEVENTY_METERS: '70 m',
+  INDOOR:         'Indoor 18 m',
+};
+
 export default function AthleteProfilePage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -145,7 +154,7 @@ export default function AthleteProfilePage() {
           currentPhotoUrl={photoUrl || undefined}
           onPhotoUpdated={(newPhotoUrl) => setPhotoUrl(newPhotoUrl)}
         />
-      ) : !user && athlete ? (
+      ) : athlete && !isOwnProfile ? (
         <AthleteAuthModal
           athlete={athlete}
           onSuccess={() => window.location.reload()}
@@ -185,10 +194,17 @@ export default function AthleteProfilePage() {
           <div style={{ overflowX: 'auto' }}>
             <table className="dtable">
               <thead>
-                <tr>
+                <tr style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  color: 'var(--subtle)',
+                }}>
                   <th>Fecha</th>
                   <th>Evento</th>
                   <th>Categoría</th>
+                  <th>Distancia</th>
                   <th>Fase</th>
                   <th className="tc" style={{ width: 70 }}>Pos.</th>
                   <th className="tc" style={{ width: 80 }}>Score</th>
@@ -212,6 +228,11 @@ export default function AthleteProfilePage() {
                       </td>
                       <td>
                         <span style={{ fontSize: 12, color: 'var(--subtle)' }}>{result.categoryName}</span>
+                      </td>
+                      <td>
+                        <span style={{ fontSize: 12, color: 'var(--subtle)', whiteSpace: 'nowrap' }}>
+                          {result.distance ? (DISTANCE_LABEL[result.distance] || result.distance) : '—'}
+                        </span>
                       </td>
                       <td>
                         <span className={`chip ${result.phase === 'FINAL' ? 'chip-accent' : result.phase === 'BRONZE_MATCH' ? 'chip-gold' : 'chip-muted'}`} style={{ fontSize: 11 }}>

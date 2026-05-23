@@ -161,6 +161,7 @@ export interface AthleteHistoryEntry {
   eventName: string;
   eventDate: string;
   categoryName: string;
+  distance: string | null;
   phase: string;
   position: number;
   score: number;

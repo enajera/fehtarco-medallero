@@ -12,6 +12,7 @@ interface AthleteEventResult {
   eventName: string;
   eventDate: Date;
   categoryName: string;
+  distance: string | null;
   phase: PhaseName;
   position: number;
   score: number;
@@ -147,6 +148,7 @@ export class ProfileService {
         eventName: event.name,
         eventDate: event.startDate,
         categoryName: `${category.bowType} ${category.gender} ${category.division} - ${modality.name}`,
+        distance: result.eventCategory.distance ?? null,
         phase: result.phase.name,
         position: result.position,
         score: result.score,
