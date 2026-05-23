@@ -10,9 +10,9 @@ import ClubTimeline from '../components/athlete/ClubTimeline';
 import AthletePrivatePanel from '../components/athlete/AthletePrivatePanel';
 
 const BOW_LABELS: Record<string, string> = {
-  RECURVE: 'Recurvo',
+  RECURVE:  'Recurvo',
   COMPOUND: 'Compuesto',
-  BAREBOW: 'Barebow',
+  BAREBOW:  'Barebow',
 };
 
 const MEDAL_COLORS = {
@@ -23,8 +23,8 @@ const MEDAL_COLORS = {
 
 const PHASE_LABELS: Record<string, string> = {
   QUALIFICATION: 'Clasificación',
-  FINAL: 'Final',
-  BRONZE_MATCH: 'Bronce',
+  FINAL:         'Final',
+  BRONZE_MATCH:  'Bronce',
 };
 
 const DISTANCE_LABEL: Record<string, string> = {
@@ -39,10 +39,12 @@ const DISTANCE_LABEL: Record<string, string> = {
 export default function AthleteProfilePage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
-  const [profile, setProfile] = useState<AthleteProfile | null>(null);
-  const [athlete, setAthlete] = useState<Athlete | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [profile, setProfile]           = useState<AthleteProfile | null>(null);
+  const [athlete, setAthlete]           = useState<Athlete | null>(null);
+  const [loading, setLoading]           = useState(true);
+  const [photoUrl, setPhotoUrl]         = useState<string | null>(null);
+  const [showAuthModal, setShowAuthModal]     = useState(false);
+  const [showPrivatePanel, setShowPrivatePanel] = useState(false);
 
   const isOwnProfile = !!(user && athlete && athlete.userId === user.id);
 
@@ -79,17 +81,21 @@ export default function AthleteProfilePage() {
     </div>
   );
 
-  const initials = `${profile.firstName[0]}${profile.lastName[0]}`.toUpperCase();
-  const bowLabel = BOW_LABELS[profile.bowType] || profile.bowType;
-  const hasClubHistory = profile.clubHistory && profile.clubHistory.length > 1;
-  const hasChart = profile.history.filter(h => h.score > 0).length >= 2;
+  const initials        = `${profile.firstName[0]}${profile.lastName[0]}`.toUpperCase();
+  const bowLabel        = BOW_LABELS[profile.bowType] || profile.bowType;
+  const hasClubHistory  = profile.clubHistory && profile.clubHistory.length > 1;
+
+  // Solo contamos resultados de QUALIFICATION con score real para la gráfica
+  const qualResults = profile.history.filter(h => h.phase === 'QUALIFICATION' && h.score >= 30);
+  const hasChart    = qualResults.length >= 2;
 
   return (
     <>
       {/* ── Profile header ── */}
       <div className="profile-band">
         <div style={{ display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap' }}>
-          {/* Photo */}
+
+          {/* Foto / avatar */}
           <div className="ath-avatar ath-avatar--xl">
             {photoUrl ? (
               <img src={photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -98,17 +104,65 @@ export default function AthleteProfilePage() {
             )}
           </div>
 
-          {/* Name + tags */}
+          {/* Nombre + chips + botones de acción */}
           <div style={{ flex: 1, minWidth: 200 }}>
-            <h1 style={{
-              fontFamily: 'Manrope, sans-serif',
-              fontSize: 'clamp(22px, 3vw, 32px)',
-              fontWeight: 800,
-              color: 'var(--text)',
-              margin: '0 0 8px',
-            }}>
-              {profile.firstName} {profile.lastName}
-            </h1>
+
+            {/* Nombre + botones */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
+              <h1 style={{
+                fontFamily: 'Manrope, sans-serif',
+                fontSize: 'clamp(20px, 3vw, 30px)',
+                fontWeight: 800,
+                color: 'var(--text)',
+                margin: 0,
+              }}>
+                {profile.firstName} {profile.lastName}
+              </h1>
+
+              {/* Botón editar perfil — solo dueño */}
+              {isOwnProfile && (
+                <button
+                  onClick={() => setShowPrivatePanel(v => !v)}
+                  style={{
+                    padding: '5px 14px',
+                    borderRadius: 8,
+                    border: '1px solid var(--border)',
+                    background: showPrivatePanel ? 'rgba(45,107,255,0.12)' : 'transparent',
+                    color: showPrivatePanel ? 'var(--accent)' : 'var(--subtle)',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    fontFamily: 'Manrope, sans-serif',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {showPrivatePanel ? 'Cerrar edición' : 'Editar perfil'}
+                </button>
+              )}
+
+              {/* Botón "¿Eres este atleta?" — para quien NO es dueño */}
+              {!isOwnProfile && athlete && (
+                <button
+                  onClick={() => setShowAuthModal(true)}
+                  style={{
+                    padding: '5px 14px',
+                    borderRadius: 8,
+                    border: '1px solid var(--accent)',
+                    background: 'rgba(45,107,255,0.08)',
+                    color: 'var(--accent)',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    fontFamily: 'Manrope, sans-serif',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {athlete.userId ? 'Iniciar sesión' : '¿Eres este atleta?'}
+                </button>
+              )}
+            </div>
+
+            {/* Chips: tipo de arco, género, club */}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               {profile.bowType && (
                 <span className={`chip chip-${profile.bowType === 'RECURVE' ? 'accent' : profile.bowType === 'COMPOUND' ? 'gold' : 'muted'}`}>
@@ -147,31 +201,29 @@ export default function AthleteProfilePage() {
         </div>
       </div>
 
-      {/* ── Auth / Photo upload ── */}
-      {isOwnProfile ? (
-        <PhotoUpload
-          athleteId={athlete!.id}
-          currentPhotoUrl={photoUrl || undefined}
-          onPhotoUpdated={(newPhotoUrl) => setPhotoUrl(newPhotoUrl)}
-        />
-      ) : athlete && !isOwnProfile ? (
-        <AthleteAuthModal
-          athlete={athlete}
-          onSuccess={() => window.location.reload()}
-        />
-      ) : null}
-
-      {/* ── Panel privado (solo dueño del perfil) ── */}
-      {isOwnProfile && athlete && (
-        <div className="dcard">
-          <AthletePrivatePanel
-            athlete={athlete}
-            onUpdated={(updated) => setAthlete(updated)}
-          />
-        </div>
+      {/* ── Panel privado (editar perfil) — expandible ── */}
+      {isOwnProfile && showPrivatePanel && athlete && (
+        <>
+          {/* Foto de perfil */}
+          <div className="dcard">
+            <div className="dcard-header" style={{ marginBottom: 12 }}>Foto de perfil</div>
+            <PhotoUpload
+              athleteId={athlete.id}
+              currentPhotoUrl={photoUrl || undefined}
+              onPhotoUpdated={(url) => setPhotoUrl(url)}
+            />
+          </div>
+          {/* Datos editables */}
+          <div className="dcard">
+            <AthletePrivatePanel
+              athlete={athlete}
+              onUpdated={(updated) => setAthlete(updated)}
+            />
+          </div>
+        </>
       )}
 
-      {/* ── Progresión de scores ── */}
+      {/* ── Progresión de puntajes (solo clasificatorias) ── */}
       {hasChart && (
         <div className="dcard">
           <div className="dcard-header">Progresión de Puntajes</div>
@@ -235,7 +287,13 @@ export default function AthleteProfilePage() {
                         </span>
                       </td>
                       <td>
-                        <span className={`chip ${result.phase === 'FINAL' ? 'chip-accent' : result.phase === 'BRONZE_MATCH' ? 'chip-gold' : 'chip-muted'}`} style={{ fontSize: 11 }}>
+                        <span
+                          className={`chip ${
+                            result.phase === 'FINAL'        ? 'chip-accent' :
+                            result.phase === 'BRONZE_MATCH' ? 'chip-gold'   : 'chip-muted'
+                          }`}
+                          style={{ fontSize: 11 }}
+                        >
                           {PHASE_LABELS[result.phase] || result.phase}
                         </span>
                       </td>
@@ -272,6 +330,59 @@ export default function AthleteProfilePage() {
           </div>
         )}
       </div>
+
+      {/* ── Overlay modal de autenticación ── */}
+      {showAuthModal && athlete && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            background: 'rgba(7,9,15,0.82)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+          }}
+          onClick={() => setShowAuthModal(false)}
+        >
+          {/* Contenedor del modal — stopPropagation para no cerrar al hacer click dentro */}
+          <div
+            style={{ position: 'relative', width: '100%', maxWidth: 440 }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Botón cerrar */}
+            <button
+              onClick={() => setShowAuthModal(false)}
+              style={{
+                position: 'absolute',
+                top: -16,
+                right: -8,
+                zIndex: 1,
+                width: 32, height: 32,
+                borderRadius: '50%',
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--subtle)',
+                fontSize: 16,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                lineHeight: 1,
+              }}
+              aria-label="Cerrar"
+            >
+              ✕
+            </button>
+            <AthleteAuthModal
+              athlete={athlete}
+              onSuccess={() => { setShowAuthModal(false); window.location.reload(); }}
+            />
+          </div>
+        </div>
+      )}
     </>
   );
 }
