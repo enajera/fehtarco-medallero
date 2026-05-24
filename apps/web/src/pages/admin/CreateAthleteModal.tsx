@@ -97,7 +97,7 @@ export default function CreateAthleteModal({
   const [birthDate, setBirthDate] = useState('');
   const [gender, setGender] = useState('');
   const [bowType, setBowType] = useState('');
-  const [clubId, setClubId] = useState('');
+  const [clubId, setClubId] = useState('INDEPENDENT');
   const [status, setStatus] = useState('active');
   const [clubs, setClubs] = useState<Club[]>([]);
   const [clubsLoading, setClubsLoading] = useState(false);
@@ -131,13 +131,13 @@ export default function CreateAthleteModal({
     setBirthDate('');
     setGender(activeCategory?.category?.gender || '');
     setBowType(activeCategory?.category?.bowType || '');
-    setClubId('');
+    setClubId('INDEPENDENT');
     setStatus('active');
   }, [createAthleteIndex, activeCategory, show]);
 
   const handleCreate = async () => {
-    if (!firstName || !lastName || !gender || !bowType || !clubId) {
-      alert('Nombre, Apellido, Género, Tipo de Arco y Club son requeridos');
+    if (!firstName || !lastName || !gender || !bowType) {
+      alert('Nombre, Apellido, Género y Tipo de Arco son requeridos');
       return;
     }
 
@@ -146,7 +146,7 @@ export default function CreateAthleteModal({
       lastName,
       gender,
       bowType,
-      clubId: Number(clubId),
+      clubId: clubId && clubId !== 'INDEPENDENT' ? Number(clubId) : null,
       birthDate: birthDate || null,
       active: status === 'active',
     });
@@ -254,12 +254,13 @@ export default function CreateAthleteModal({
                       onChange={e => setClubId(e.target.value)}
                       disabled={creatingAthlete || clubsLoading}
                     >
-                      <option value="">{clubsLoading ? 'Cargando clubes...' : 'Seleccionar club...'}</option>
-                      {clubs.map(c => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
+                      <option value="INDEPENDENT">Independiente (sin club)</option>
+                      {clubsLoading
+                        ? <option disabled>Cargando clubes...</option>
+                        : clubs.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))
+                      }
                     </Form.Select>
                   </Form.Group>
                 </Col>
@@ -293,7 +294,7 @@ export default function CreateAthleteModal({
         <Button
           variant="primary"
           onClick={handleCreate}
-          disabled={creatingAthlete || !firstName || !lastName || !gender || !bowType || !clubId}
+          disabled={creatingAthlete || !firstName || !lastName || !gender || !bowType}
         >
           {creatingAthlete ? (
             <>

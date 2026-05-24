@@ -18,21 +18,19 @@ export default function AdminEvents() {
   const [totalPages, setTotalPages] = useState(1);
   const [query, setQuery] = useState('');
 
-  // Debounced search: when query changes, wait 200ms then reset page and fetch
+  // Debounced search
   useEffect(() => {
     const t = setTimeout(() => {
       setPage(1);
-      fetchEvents();
-    }, 200);
+    }, 250);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
-  // When filterYear, page or limit change, fetch server-side
+  // Fetch when any filter/page/limit changes
   useEffect(() => {
     fetchEvents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterYear, page, limit]);
+  }, [filterYear, page, limit, query]);
 
   const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i);
 
@@ -49,10 +47,6 @@ export default function AdminEvents() {
     clubMedalsEnabled: true,
   });
 
-  useEffect(() => {
-    fetchEvents();
-  }, [filterYear]);
-
   const fetchEvents = async () => {
     try {
       const params: Record<string, any> = { page, limit };
@@ -62,8 +56,6 @@ export default function AdminEvents() {
       setEvents(response.data.data);
       const meta = response.data.meta;
       if (meta) {
-        setPage(meta.page || 1);
-        setLimit(meta.limit || 20);
         setTotalPages(meta.totalPages || 1);
       }
     } catch (error) {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { profileApi, athletesApi, AthleteProfile, Athlete, mediaUrl } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import Loading from '../components/Loading';
@@ -43,8 +43,9 @@ export default function AthleteProfilePage() {
   const [athlete, setAthlete]           = useState<Athlete | null>(null);
   const [loading, setLoading]           = useState(true);
   const [photoUrl, setPhotoUrl]         = useState<string | null>(null);
-  const [showAuthModal, setShowAuthModal]     = useState(false);
+  const [showAuthModal, setShowAuthModal]       = useState(false);
   const [showPrivatePanel, setShowPrivatePanel] = useState(false);
+  const navigate = useNavigate();
 
   const isOwnProfile = !!(user && athlete && athlete.userId === user.id);
 
@@ -91,6 +92,35 @@ export default function AthleteProfilePage() {
 
   return (
     <>
+      {/* ── Botón de regreso ── */}
+      <div style={{ marginBottom: 12 }}>
+        <button
+          onClick={() => navigate(-1)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '6px 14px 6px 10px',
+            borderRadius: 8,
+            border: '1px solid var(--border)',
+            background: 'transparent',
+            color: 'var(--subtle)',
+            fontSize: 13,
+            fontFamily: 'Manrope, sans-serif',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'color 0.15s',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.color = 'var(--text)')}
+          onMouseLeave={e => (e.currentTarget.style.color = 'var(--subtle)')}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Volver
+        </button>
+      </div>
+
       {/* ── Profile header ── */}
       <div className="profile-band">
         <div style={{ display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap' }}>
