@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react'; // useState usado en RecordCard (imgError)
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { recordsApi, RecordEntry, mediaUrl } from '../api/client';
@@ -214,22 +214,19 @@ function RecordCard({ record, index, colors }: { record: RecordEntry; index: num
   );
 }
 
-// ─── Filtros ─────────────────────────────────────────
-type PhaseFilter = 'ALL' | 'QUALIFICATION' | 'FINAL';
-
 // ─── Página principal ────────────────────────────────
 export default function RecordsPage() {
   const [records, setRecords]   = useState<RecordEntry[]>([]);
   const [loading, setLoading]   = useState(true);
-  const [phase,   setPhase]     = useState<PhaseFilter>('QUALIFICATION');
 
   useEffect(() => {
     setLoading(true);
-    recordsApi.getAll({ phase: phase !== 'ALL' ? phase : undefined })
+    // Solo clasificatorias son válidas para records
+    recordsApi.getAll({ phase: 'QUALIFICATION' })
       .then(res => setRecords(res.data.data || []))
       .catch(() => setRecords([]))
       .finally(() => setLoading(false));
-  }, [phase]);
+  }, []);
 
   // Agrupar por "bowType-gender" con orden fijo
   const sections = useMemo(() => {
@@ -243,49 +240,15 @@ export default function RecordsPage() {
       .filter(s => s.entries.length > 0);
   }, [records]);
 
-  const pillStyle = (active: boolean): React.CSSProperties => ({
-    padding: '6px 16px',
-    borderRadius: 20,
-    cursor: 'pointer',
-    border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-    background: active ? 'rgba(45,107,255,0.12)' : 'transparent',
-    color: active ? 'var(--accent)' : 'var(--subtle)',
-    fontSize: 13,
-    fontFamily: 'Manrope, sans-serif',
-    fontWeight: active ? 700 : 400,
-    transition: 'all 0.15s',
-  });
-
   return (
     <>
       {/* ── Encabezado ── */}
       <div style={{ marginBottom: 32 }}>
         <p className="page-eyebrow">Federación Hondureña de Tiro con Arco</p>
-        <h1 className="page-title">Records Nacionales</h1>
+        <h1 className="page-title">Records Nacionales e Internacionales</h1>
         <p style={{ fontSize: 14, color: 'var(--subtle)', margin: '6px 0 0', maxWidth: 520 }}>
-          El mejor puntaje registrado en competencias oficiales por categoría, distancia y modalidad.
+          El mejor puntaje en clasificatorias, por categoría, distancia y modalidad, en competencias oficiales.
         </p>
-      </div>
-
-      {/* ── Filtro de fase ── */}
-      <div className="dcard" style={{ padding: '14px 18px', marginBottom: 28 }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{
-            fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-            letterSpacing: '0.08em', color: 'var(--subtle)', marginRight: 4,
-          }}>
-            Fase
-          </span>
-          {([
-            ['QUALIFICATION', 'Clasificación'],
-            ['FINAL',         'Final'],
-            ['ALL',           'Todas'],
-          ] as [PhaseFilter, string][]).map(([p, label]) => (
-            <button key={p} onClick={() => setPhase(p)} style={pillStyle(phase === p)}>
-              {label}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* ── Contenido ── */}

@@ -261,7 +261,6 @@ export default function Podium({ clubs }: PodiumProps) {
   const top = clubs.slice(0, 3);
   const [first, second, third] = top;
   const year = new Date().getFullYear();
-  const prevYear = year - 1;
 
   return (
     <section className="px-5 md:px-[52px] py-12 md:py-[80px] overflow-hidden" style={{ position: 'relative' }}>
@@ -289,7 +288,7 @@ export default function Podium({ clubs }: PodiumProps) {
         <h2 className="font-clash font-bold mb-[6px]"
           style={{ fontSize: 'clamp(22px,3vw,40px)', letterSpacing: '-1.5px', lineHeight: 1.05, color: 'var(--text)' }}>
           Top Clubes{' '}
-          <span style={{ color: 'var(--gold)' }}>{prevYear}–{year}</span>
+          <span style={{ color: 'var(--gold)' }}>{year}</span>
         </h2>
         <p className="text-[13px] mb-10 md:mb-[52px] max-w-[460px] mx-auto"
           style={{ color: 'var(--subtle)', lineHeight: 1.6 }}>

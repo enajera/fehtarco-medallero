@@ -24,6 +24,8 @@ function ClubAvatar({ club }: { club: ClubMedalCount }) {
 
 export default function Medallero() {
   const [medalleros, setMedalleros] = useState<Record<number, ClubMedalCount[]>>({});
+  const [allTimeMedallero, setAllTimeMedallero] = useState<ClubMedalCount[] | null>(null);
+  const [allTimeLoading, setAllTimeLoading] = useState(false);
   const [availableYears, setAvailableYears] = useState<number[]>([]);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -45,8 +47,10 @@ export default function Medallero() {
     fetchAvailableYears();
   }, []);
 
+  // Fetch año seleccionado
   useEffect(() => {
     if (!selectedYear) return;
+    if (medalleros[selectedYear]) return;
     const fetchMedallero = async () => {
       try {
         const response = await medalsApi.getClubMedallero({ year: selectedYear });
@@ -55,8 +59,18 @@ export default function Medallero() {
         console.error('Error fetching medallero for year', selectedYear, ':', error);
       }
     };
-    if (!medalleros[selectedYear]) fetchMedallero();
-  }, [selectedYear, medalleros]);
+    fetchMedallero();
+  }, [selectedYear]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch todos los tiempos cuando se activa la vista histórica
+  useEffect(() => {
+    if (!historicalView || allTimeMedallero !== null) return;
+    setAllTimeLoading(true);
+    medalsApi.getClubMedallero({})  // sin year → todos los años
+      .then(res => setAllTimeMedallero(res.data.data))
+      .catch(() => setAllTimeMedallero([]))
+      .finally(() => setAllTimeLoading(false));
+  }, [historicalView]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) return <Loading />;
 
@@ -71,21 +85,7 @@ export default function Medallero() {
     { gold: 0, silver: 0, bronze: 0 }
   );
 
-  const historicalTotals = Object.values(medalleros)
-    .flat()
-    .reduce((acc, club) => {
-      const existing = acc.find((c) => c.clubId === club.clubId);
-      if (existing) {
-        existing.gold += club.gold;
-        existing.silver += club.silver;
-        existing.bronze += club.bronze;
-        existing.points += club.points;
-      } else {
-        acc.push({ ...club });
-      }
-      return acc;
-    }, [] as ClubMedalCount[])
-    .sort((a, b) => b.points - a.points);
+  const historicalTotals = allTimeMedallero ?? [];
 
   const historicalTotalMedals = historicalTotals.reduce(
     (acc, club) => ({
@@ -260,7 +260,11 @@ export default function Medallero() {
 
       {/* Main table */}
       <div className="dcard">
-        {displayMedallero.length > 0 ? (
+        {allTimeLoading && historicalView ? (
+          <div style={{ padding: '52px 24px', textAlign: 'center' }}>
+            <Loading />
+          </div>
+        ) : displayMedallero.length > 0 ? (
           <div style={{ overflowX: 'auto' }}>
             <table className="dtable">
               <thead>
@@ -359,7 +363,7 @@ export default function Medallero() {
               {historicalView ? 'ningún año' : `${selectedYear}`}.
             </p>
           </div>
-        )}
+        ) }
       </div>
 
       {/* Note */}
