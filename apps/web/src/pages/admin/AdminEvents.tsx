@@ -38,7 +38,7 @@ export default function AdminEvents() {
     name: '',
     organizer: '',
     location: '',
-    country: 'Paraguay',
+    country: 'Honduras',
     startDate: '',
     endDate: '',
     eventScope: 'NATIONAL_FEDERATION',
@@ -71,7 +71,7 @@ export default function AdminEvents() {
       name: '',
       organizer: '',
       location: '',
-      country: 'Paraguay',
+      country: 'Honduras',
       startDate: '',
       endDate: '',
       eventScope: 'NATIONAL_FEDERATION',
@@ -143,10 +143,13 @@ export default function AdminEvents() {
 
   return (
     <>
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1>📅 Gestión de Eventos</h1>
+      <div className="admin-page-header">
+        <div>
+          <h1 className="admin-page-title">Eventos</h1>
+          <p className="admin-page-sub">Competencias oficiales registradas en el sistema</p>
+        </div>
         <Button variant="primary" onClick={handleShowModal}>
-          ➕ Nuevo Evento
+          + Nuevo Evento
         </Button>
       </div>
 

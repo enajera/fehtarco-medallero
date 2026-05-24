@@ -811,7 +811,12 @@ export default function AdminResults() {
   return (
     <>
       <div className="p-6">
-        <h1 className="mb-4">📝 Gestión de Resultados</h1>
+        <div className="admin-page-header">
+          <div>
+            <h1 className="admin-page-title">Resultados</h1>
+            <p className="admin-page-sub">Carga y gestión de resultados por evento y categoría</p>
+          </div>
+        </div>
 
         <Card className="mb-4">
           <Card.Body>

@@ -117,6 +117,11 @@ export default function AdminAthletes() {
     photoUrl: '',
     clubId: '',
     active: true,
+    email: '',
+    phone: '',
+    bloodType: '',
+    emergencyContactName: '',
+    emergencyContactPhone: '',
     clubHistory: [] as Array<{ clubId: number | null; clubName?: string; from?: string | null; to?: string | null }>,
   });
 
@@ -203,6 +208,11 @@ export default function AdminAthletes() {
         photoUrl: athlete.photoUrl || '',
         clubId: athlete.clubId?.toString() || '',
         active: athlete.active ?? true,
+        email: (athlete as any).email || '',
+        phone: (athlete as any).phone || '',
+        bloodType: (athlete as any).bloodType || '',
+        emergencyContactName: (athlete as any).emergencyContactName || '',
+        emergencyContactPhone: (athlete as any).emergencyContactPhone || '',
         // Normalize clubHistory so clubId is a string ('' when null) to match form selects
         clubHistory: ((athlete as any).clubHistory || []).map((h: any) => ({
           clubId: h?.clubId ? String(h.clubId) : '',
@@ -218,11 +228,16 @@ export default function AdminAthletes() {
         firstName: '',
         lastName: '',
         birthDate: '',
-        gender: 'MALE',
+        gender: 'M',
         bowType: '',
         photoUrl: '',
         clubId: '',
         active: true,
+        email: '',
+        phone: '',
+        bloodType: '',
+        emergencyContactName: '',
+        emergencyContactPhone: '',
         clubHistory: [],
       });
     }
@@ -310,6 +325,11 @@ export default function AdminAthletes() {
       bowType: (formData as any).bowType || undefined,
       clubId: formData.clubId ? Number(formData.clubId) : null,
       active: !!formData.active,
+      email: (formData as any).email || null,
+      phone: (formData as any).phone || null,
+      bloodType: (formData as any).bloodType || null,
+      emergencyContactName: (formData as any).emergencyContactName || null,
+      emergencyContactPhone: (formData as any).emergencyContactPhone || null,
       clubHistory: ((formData as any).clubHistory || []).map((entry: any) => ({
         clubId: entry.clubId !== '' && entry.clubId != null ? Number(entry.clubId) : null,
         clubName: entry.clubName || null,
@@ -436,10 +456,13 @@ export default function AdminAthletes() {
 
   return (
     <>
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1>👤 Gestión de Atletas</h1>
+      <div className="admin-page-header">
+        <div>
+          <h1 className="admin-page-title">Atletas</h1>
+          <p className="admin-page-sub">Gestión de atletas registrados en la federación</p>
+        </div>
         <Button variant="primary" onClick={() => handleShowModal()}>
-          ➕ Nuevo Atleta
+          + Nuevo Atleta
         </Button>
       </div>
 
@@ -504,7 +527,12 @@ export default function AdminAthletes() {
                   <td>
                     <AthleteAvatar athlete={athlete} size={28} />
                   </td>
-                  <td className="fw-bold">{athlete.firstName} {athlete.lastName}</td>
+                  <td>
+                    <div className="fw-bold">{athlete.firstName} {athlete.lastName}</div>
+                    {(athlete as any).email && (
+                      <small className="text-muted">{(athlete as any).email}</small>
+                    )}
+                  </td>
                   <td>
                     {(() => {
                       const isMale = athlete.gender === 'MALE' || athlete.gender === 'M';
@@ -642,6 +670,72 @@ export default function AdminAthletes() {
                     label={formData.active ? 'Activo' : 'Inactivo'}
                     checked={formData.active}
                     onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            {/* Contacto */}
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Correo electrónico</Form.Label>
+                  <Form.Control
+                    type="email"
+                    placeholder="atleta@correo.com"
+                    value={(formData as any).email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Teléfono</Form.Label>
+                  <Form.Control
+                    type="tel"
+                    placeholder="+504 9999-9999"
+                    value={(formData as any).phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            {/* Datos de emergencia */}
+            <Row>
+              <Col md={4}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Tipo de sangre</Form.Label>
+                  <Form.Select
+                    value={(formData as any).bloodType}
+                    onChange={(e) => setFormData({ ...formData, bloodType: e.target.value })}
+                  >
+                    <option value="">-- No especificado --</option>
+                    {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={4}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Contacto de emergencia</Form.Label>
+                  <Form.Control
+                    type="text"
+                    placeholder="Nombre"
+                    value={(formData as any).emergencyContactName}
+                    onChange={(e) => setFormData({ ...formData, emergencyContactName: e.target.value })}
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={4}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Tel. emergencia</Form.Label>
+                  <Form.Control
+                    type="tel"
+                    placeholder="+504 9999-9999"
+                    value={(formData as any).emergencyContactPhone}
+                    onChange={(e) => setFormData({ ...formData, emergencyContactPhone: e.target.value })}
                   />
                 </Form.Group>
               </Col>

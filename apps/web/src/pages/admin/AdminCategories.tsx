@@ -208,10 +208,13 @@ export default function AdminCategories() {
 
   return (
     <>
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1>📋 Gestión de Categorías</h1>
+      <div className="admin-page-header">
+        <div>
+          <h1 className="admin-page-title">Categorías</h1>
+          <p className="admin-page-sub">Categorías de competencia disponibles</p>
+        </div>
         <Button variant="primary" onClick={() => handleShowModal()}>
-          ➕ Nueva Categoría
+          + Nueva Categoría
         </Button>
       </div>
 

@@ -257,10 +257,13 @@ export default function AdminClubs() {
 
   return (
     <>
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1>🏛️ Gestión de Clubes</h1>
+      <div className="admin-page-header">
+        <div>
+          <h1 className="admin-page-title">Clubes</h1>
+          <p className="admin-page-sub">Clubes afiliados a la federación</p>
+        </div>
         <Button variant="primary" onClick={() => handleShowModal()}>
-          ➕ Nuevo Club
+          + Nuevo Club
         </Button>
       </div>
 

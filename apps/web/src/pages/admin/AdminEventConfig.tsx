@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Card, Table, Button, Form, Modal, Row, Col, Alert, Badge } from 'react-bootstrap';
 import { eventsApi, categoriesApi, modalitiesApi, eventCategoriesApi } from '../../api/client';
 import Loading from '../../components/Loading';
@@ -47,6 +47,7 @@ interface Modality {
 
 export default function AdminEventConfig() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [modalities, setModalities] = useState<Modality[]>([]);
@@ -228,24 +229,25 @@ export default function AdminEventConfig() {
   return (
     <>
       {/* Event Header */}
+      <button onClick={() => navigate(-1)} className="admin-back mb-3" style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#6b7280', padding: 0 }}>
+        ← Volver a Eventos
+      </button>
+
       <Card className="mb-4">
         <Card.Body>
           <div className="d-flex justify-content-between align-items-start">
             <div>
-              <h1 className="mb-2">⚙️ {event.name}</h1>
-              <p className="text-muted mb-1">
-                📍 {event.location}, {event.country} | 🏛️ {event.organizer}
+              <h1 className="admin-page-title mb-1">{event.name}</h1>
+              <p className="text-muted mb-1" style={{ fontSize: 13 }}>
+                {event.location}, {event.country} · {event.organizer}
               </p>
-              <p className="mb-0">
-                📅 {new Date(event.startDate).toLocaleDateString()} - {new Date(event.endDate).toLocaleDateString()}
+              <p className="mb-0" style={{ fontSize: 13, color: '#6b7280' }}>
+                {new Date(event.startDate).toLocaleDateString('es-HN', { day: '2-digit', month: 'short', year: 'numeric' })} — {new Date(event.endDate).toLocaleDateString('es-HN', { day: '2-digit', month: 'short', year: 'numeric' })}
               </p>
             </div>
             <div>
-              <Link to="/admin/eventos" className="btn btn-outline-secondary me-2">
-                ← Volver
-              </Link>
-              <Link to={`/admin/resultados?event=${event.id}`} className="btn btn-success">
-                📝 Cargar Resultados
+              <Link to={`/admin/resultados?event=${event.id}`} className="btn btn-primary" style={{ fontSize: 13 }}>
+                Cargar Resultados
               </Link>
             </div>
           </div>
