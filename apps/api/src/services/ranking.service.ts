@@ -106,9 +106,17 @@ export class RankingService {
       });
     }
 
-    // Split by gender, sort each by avgScore desc, assign ranks
+    // Split by gender, sort each by: 1) longest distance first, 2) best score desc
+    const distanceRank = Object.fromEntries(DISTANCE_ORDER.map((d, i) => [d, i]));
     const sort = (arr: RankingEntry[]) =>
-      arr.sort((a, b) => b.avgScore - a.avgScore).map((e, i) => ({ ...e, rank: i + 1 }));
+      arr
+        .sort((a, b) => {
+          const dA = distanceRank[a.topDistance] ?? 99;
+          const dB = distanceRank[b.topDistance] ?? 99;
+          if (dA !== dB) return dA - dB; // lower index = longer distance = better rank
+          return b.bestScore - a.bestScore; // same distance → higher best score wins
+        })
+        .map((e, i) => ({ ...e, rank: i + 1 }));
 
     return {
       M: sort(entries.filter(e => e.gender === 'M')),

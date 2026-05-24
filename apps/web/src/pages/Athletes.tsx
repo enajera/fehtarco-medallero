@@ -221,10 +221,10 @@ function AthleteRow({
             }}
           >
             <Stat label="Competencias" value={String(entry.totalCompetitions)} color="var(--subtle)" />
-            <Stat label="Mejor" value={String(entry.bestScore)} color="var(--subtle)" />
+            <Stat label="Promedio" value={String(entry.avgScore)} color="var(--subtle)" />
             <Stat
-              label="Promedio"
-              value={String(entry.avgScore)}
+              label="Mejor"
+              value={String(entry.bestScore)}
               color={color}
               large
             />
@@ -407,7 +407,7 @@ export default function Athletes() {
         <p className="page-eyebrow">Federación Hondureña de Tiro con Arco</p>
         <h1 className="page-title">Ranking de Atletas</h1>
         <p style={{ fontSize: 14, color: 'var(--subtle)', margin: '6px 0 0', maxWidth: 520 }}>
-          Clasificación basada en el promedio de puntaje en clasificación a la mayor distancia competida.
+          Clasificación por distancia más larga competida y mejor puntaje en clasificatorias.
         </p>
       </div>
 
