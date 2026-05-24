@@ -440,6 +440,26 @@ export const medalsApi = {
     api.get<ApiResponse<AthleteRankEntry[]>>('/medals/athletes', { params }),
 };
 
+// Ranking
+export interface RankingEntry {
+  rank: number;
+  athleteId: number;
+  firstName: string;
+  lastName: string;
+  hasPhoto: boolean;
+  club: { id: number; name: string } | null;
+  gender: string;
+  topDistance: string;
+  avgScore: number;
+  bestScore: number;
+  totalCompetitions: number;
+}
+
+export const rankingApi = {
+  getByBowType: (bowType: string) =>
+    api.get<ApiResponse<{ M: RankingEntry[]; F: RankingEntry[] }>>('/ranking', { params: { bowType } }),
+};
+
 // Records
 export interface RecordEntry {
   bowType: string;

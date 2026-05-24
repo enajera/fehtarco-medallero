@@ -14,6 +14,7 @@ import diagnosticRoutes from './diagnostic.routes';
 import phaseRoutes from './phase.routes';
 import importRoutes from './import.routes';
 import recordsRoutes from './records.routes';
+import rankingRoutes from './ranking.routes';
 
 const router = Router();
 
@@ -33,6 +34,7 @@ router.use('/diagnostic', diagnosticRoutes);
 router.use('/phases', phaseRoutes);
 router.use('/import', importRoutes);
 router.use('/records', recordsRoutes);
+router.use('/ranking', rankingRoutes);
 
 // Results by event (nested route)
 router.use('/events/:eventId/results', getResultsByEventRouter);
