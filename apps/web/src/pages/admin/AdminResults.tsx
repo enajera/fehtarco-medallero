@@ -402,15 +402,9 @@ export default function AdminResults() {
     }
 
     try {
-      // Determine which endpoint to use based on the current phase
-      // If viewing QUALIFICATION, use /import/ianseo
-      // If viewing ELIMINATORY (FINAL/BRONZE_MATCH), use /import/ianseo-matches
-      const isEliminatory = activeCategory && (
-        hasPhase(activeCategory, 'FINAL') || 
-        hasPhase(activeCategory, 'BRONZE_MATCH')
-      );
-      
-      const endpoint = isEliminatory ? '/import/ianseo-matches' : '/import/ianseo';
+      // Usar el endpoint correcto según la fase activa que está viendo el usuario,
+      // NO según las fases que tenga configurada la categoría (muchas tienen ambas)
+      const endpoint = activePhaseType === 'ELIMINATORY' ? '/import/ianseo-matches' : '/import/ianseo';
       const resp = await api.get(endpoint, { params: { url } });
       const imported = resp.data?.data || [];
 
@@ -883,7 +877,7 @@ export default function AdminResults() {
                     {/* Qualification */}
                     {(selectedEvent.eventCategories || []).filter(isQualification).length > 0 && (
                       <div className="mb-5">
-                        <h4 className="mb-3">📋 Clasificatorio</h4>
+                        <h1 className="mb-3">📋 Clasificatorio</h1>
                         <Table striped hover>
                           <thead>
                             <tr>
@@ -917,7 +911,7 @@ export default function AdminResults() {
                     {/* Matches */}
                     {(selectedEvent.eventCategories || []).filter(isEliminatory).length > 0 && (
                       <div className="mb-5">
-                        <h4 className="mb-3">🥊 Eliminatorias</h4>
+                        <h1 className="mb-3" style={{ color: 'var(--text)', fontWeight: 700 }}>🥊 Eliminatorias</h1>
                         <Table striped hover>
                           <thead>
                             <tr>

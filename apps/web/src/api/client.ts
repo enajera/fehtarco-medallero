@@ -332,6 +332,10 @@ export const eventsApi = {
       return res;
     });
   },
+  // Invalida todas las entradas de cache de events:*
+  clearCache: () => {
+    Object.keys(simpleCache).forEach(k => { if (k.startsWith('events:')) delete simpleCache[k]; });
+  },
   getById: (id: number) => api.get<ApiResponse<Event>>(`/events/${id}`),
   create: (data: Partial<Event>) => api.post<ApiResponse<Event>>('/events', data),
   update: (id: number, data: Partial<Event>) => api.put<ApiResponse<Event>>(`/events/${id}`, data),

@@ -37,7 +37,7 @@ export default function AdminEvents() {
   const [formData, setFormData] = useState<Partial<Event>>({
     name: '',
     organizer: '',
-    location: '',
+    location: 'Tegucigalpa, Estadio Chochi Sosa',
     country: 'Honduras',
     startDate: '',
     endDate: '',
@@ -47,8 +47,9 @@ export default function AdminEvents() {
     clubMedalsEnabled: true,
   });
 
-  const fetchEvents = async () => {
+  const fetchEvents = async (bustCache = false) => {
     try {
+      if (bustCache) eventsApi.clearCache();
       const params: Record<string, any> = { page, limit };
       if (filterYear) params.year = filterYear;
       if (query) params.q = query;
@@ -70,7 +71,7 @@ export default function AdminEvents() {
     setFormData({
       name: '',
       organizer: '',
-      location: '',
+      location: 'Tegucigalpa, Estadio Chochi Sosa',
       country: 'Honduras',
       startDate: '',
       endDate: '',
@@ -119,7 +120,7 @@ export default function AdminEvents() {
         setSuccess('Evento creado correctamente');
       }
       handleCloseModal();
-      fetchEvents();
+      fetchEvents(true);
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
       setError(formatError(err) || 'Error al guardar el evento');
@@ -132,7 +133,7 @@ export default function AdminEvents() {
     try {
       await eventsApi.delete(id);
       setSuccess('Evento eliminado correctamente');
-      fetchEvents();
+      fetchEvents(true);
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
       setError(formatError(err) || 'Error al eliminar el evento');
