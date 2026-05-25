@@ -537,7 +537,9 @@ export default function AdminResults() {
   const handleConfirmImport = () => {
     if (!activeCategory || !importPreview) return;
 
-    const isEliminatoryCategory = hasPhase(activeCategory, 'FINAL') || hasPhase(activeCategory, 'BRONZE_MATCH');
+    // Usar activePhaseType, NO hasPhase — muchas categorías tienen FINAL+QUALIFICATION
+    // y si usamos hasPhase siempre guardaría como FINAL en vez de QUALIFICATION
+    const isEliminatoryCategory = activePhaseType === 'ELIMINATORY';
 
     const newResults: Result[] = [];
     let tempId = -(Date.now() * 1000);
