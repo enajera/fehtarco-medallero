@@ -1,3 +1,4 @@
+import { BowType } from '@prisma/client';
 import prisma from './prisma';
 
 const DISTANCE_ORDER = [
@@ -31,26 +32,19 @@ export class RankingService {
         score: { gte: 30 },
         phase: { name: 'QUALIFICATION' },
         eventCategory: {
-          category: { bowType },
+          category: { bowType: bowType as BowType },
           distance: { not: null },
         },
       },
-      select: {
-        score: true,
-        athleteId: true,
+      include: {
         athlete: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            photoMimeType: true,
+          include: {
             club: { select: { id: true, name: true } },
           },
         },
         eventCategory: {
-          select: {
-            distance: true,
-            category: { select: { gender: true } },
+          include: {
+            category: { select: { gender: true, bowType: true, division: true } },
           },
         },
       },
@@ -58,16 +52,14 @@ export class RankingService {
 
     // Group by athleteId → distanceKey → scores[]
     const map = new Map<number, {
-      athlete: any;
+      athlete: typeof results[0]['athlete'];
       gender: string;
       byDistance: Map<string, number[]>;
     }>();
 
     for (const r of results) {
       const dist = r.eventCategory.distance!;
-      const rawGender = r.eventCategory.category.gender;
-      // Normalize gender to M/F
-      const gender = rawGender === 'MALE' ? 'M' : rawGender === 'FEMALE' ? 'F' : rawGender;
+      const gender = r.eventCategory.category.gender as string; // enum Gender: 'M' | 'F'
 
       if (!map.has(r.athleteId)) {
         map.set(r.athleteId, { athlete: r.athlete, gender, byDistance: new Map() });
@@ -97,7 +89,7 @@ export class RankingService {
         firstName: athlete.firstName,
         lastName: athlete.lastName,
         hasPhoto: athlete.photoMimeType != null,
-        club: athlete.club ?? null,
+        club: athlete.club ? { id: athlete.club.id, name: athlete.club.name } : null,
         gender,
         topDistance,
         avgScore,
